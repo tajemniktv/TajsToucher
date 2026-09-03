@@ -1,0 +1,21 @@
+# Build output
+bin/
+obj/
+artifacts/
+
+# IDE
+.vs/
+.idea/
+*.user
+*.suo
+
+# OS
+Thumbs.db
+.DS_Store
+
+# Local configuration / secrets
+*.local.json
+*.local.toml
+*.local.yaml
+.env
+.env.*
