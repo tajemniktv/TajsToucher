@@ -1,46 +1,100 @@
 # TajsToucher
 
-TajsToucher is a tiny Windows helper that makes hardware-key signing less invisible.
+TajsToucher is a small Windows helper that makes hardware-key signing less
+invisible. Git configures it as its OpenPGP program; TajsToucher shows a
+notification for signing operations and then forwards the operation to the
+real `gpg.exe`.
 
-Right now it wraps Git's OpenPGP signing command, shows a desktop notification when Git is about to ask GnuPG to sign something, and then forwards the operation to the real `gpg.exe` unchanged.
-
-The problem it solves is painfully mundane: a YubiKey can be waiting for touch while blinking somewhere under a desk, and neither Git nor GnuPG gives Windows users a particularly good visual cue.
-
-Current proof of concept:
+The problem it solves is painfully mundane: a YubiKey can be waiting for touch
+while blinking somewhere under a desk, and neither Git nor GnuPG gives Windows
+users a particularly good visual cue.
 
 ```text
 Git / Codex
     |
     v
-gpg-git-notify.cmd
-    |-- show notification
+TajsToucher.exe
+    |-- native notification (signing only, fail-open)
     `-- real gpg.exe
             |
             v
-        gpg-agent
+         gpg-agent
             |
             v
          YubiKey
 ```
 
-The current notification text is intentionally sophisticated:
+## v0.1 usage
 
-> YubiKey yearns touching
+Build the project with the .NET 10 SDK:
 
-> Git is requesting an OpenPGP signature. Please touchy touch the YubiKey while it flashes.
+```powershell
+dotnet restore TajsToucher.sln
+dotnet build src\TajsToucher\TajsToucher.csproj -c Release
+```
 
-## Scope
+For a small single-file executable on a machine with the .NET 10 Windows
+Desktop runtime installed, publish for Windows x64:
 
-The first release should stay deliberately boring:
+```powershell
+dotnet publish src\TajsToucher\TajsToucher.csproj `
+  -c Release -r win-x64 --self-contained false `
+  -p:PublishSingleFile=true `
+  -o artifacts\publish\framework-dependent
+```
 
-- Windows only.
-- Git/OpenPGP signing only.
-- One small executable or wrapper.
-- Show a notification immediately before GPG signing.
-- Preserve stdin, stdout, stderr, arguments, and GPG's exit code.
-- Never handle or log secret key material, PINs, passphrases, signature payloads, or Git input.
+For a self-contained single-file executable with no .NET prerequisite:
 
-The project should remain useful even if it never grows beyond that.
+```powershell
+dotnet publish src\TajsToucher\TajsToucher.csproj `
+  -c Release -r win-x64 --self-contained true `
+  -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true `
+  -o artifacts\publish\win-x64
+```
+
+Run the published executable from its final location:
+
+```powershell
+artifacts\publish\win-x64\TajsToucher.exe install
+artifacts\publish\win-x64\TajsToucher.exe diagnose
+artifacts\publish\win-x64\TajsToucher.exe uninstall
+```
+
+`install` discovers the real GnuPG executable, stores it in the current user's
+`HKCU\Software\TajsToucher` key, and sets the global Git
+`gpg.openpgp.program` value to the absolute TajsToucher path. `uninstall`
+restores the previous value only if Git still points at the same wrapper; it
+will not overwrite a setting changed by the user in the meantime.
+
+The executable's default mode is the GPG proxy. The `install`, `uninstall`,
+`diagnose`, `help`, and `version` subcommands are reserved only when supplied
+as the single bare argument, so GPG options such as `--help` and `--version`
+are forwarded unchanged.
+
+Run the tests with:
+
+```powershell
+dotnet test tests\TajsToucher.Tests\TajsToucher.Tests.csproj -c Release
+```
+
+## Security and process boundary
+
+The wrapper:
+
+- detects `--sign`, `--detach-sign`, `--clearsign`, and Git's `-bsau`-style
+  short option clusters;
+- does not notify for `--verify` or `--verify-files` operations;
+- forwards stdin, stdout, and stderr as raw byte streams and returns GPG's
+  exit code;
+- never prints or stores GPG arguments, stdin, key material, PINs,
+  passphrases, signatures, or other cryptographic payloads;
+- uses a short-lived child process for the notification so the notification
+  does not extend Git's synchronous GPG operation; and
+- treats notification failures as non-fatal.
+
+The older `gpg-git-notify.cmd` and `gpg-touch-notify.ps1` files are retained as
+legacy proof-of-concept references. New installations should use the native
+executable.
 
 ## Possible future direction
 

@@ -4,17 +4,20 @@
 
 The first milestone should prove one thing reliably: when Git asks GnuPG to sign, the user gets an immediate Windows notification and signing still behaves exactly as before.
 
+Status: implemented in `src/TajsToucher` and published as a self-contained
+Windows executable.
+
 Target features:
 
-- Replace the CMD + PowerShell proof of concept with one small Windows executable.
-- Detect Git/OpenPGP signing invocations without matching verification operations.
-- Show a native Windows notification before invoking real GPG.
-- Include repository name when cheaply available.
-- Preserve stdin/stdout/stderr and exit status exactly.
-- Discover and store the real `gpg.exe` path safely.
-- `install` command to set `gpg.openpgp.program`.
-- `uninstall` command to restore the previous Git configuration.
-- Minimal diagnostic mode.
+- [x] Replace the CMD + PowerShell proof of concept with one small Windows executable.
+- [x] Detect Git/OpenPGP signing invocations without matching verification operations.
+- [x] Show a native Windows notification before invoking real GPG.
+- [x] Include repository name when cheaply available.
+- [x] Preserve stdin/stdout/stderr and exit status exactly.
+- [x] Discover and store the real `gpg.exe` path safely.
+- [x] `install` command to set `gpg.openpgp.program`.
+- [x] `uninstall` command to restore the previous Git configuration.
+- [x] Minimal diagnostic mode.
 
 Success criterion: it can sit in the signing path for weeks without being interesting.
 

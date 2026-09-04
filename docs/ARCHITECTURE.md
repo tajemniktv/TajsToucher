@@ -2,9 +2,13 @@
 
 ## Design principle
 
-TajsToucher should be an event/UX layer around existing cryptographic tooling, not a replacement cryptographic stack.
+TajsToucher is an event/UX layer around existing cryptographic tooling, not a
+replacement cryptographic stack.
 
-For v0.1, Git invokes a wrapper instead of calling `gpg.exe` directly. The wrapper recognizes signing invocations, emits a local notification, and then launches the real GPG executable while preserving process behavior.
+For v0.1, Git invokes `TajsToucher.exe` instead of calling `gpg.exe` directly.
+The executable recognizes signing invocations, launches a short-lived native
+Windows notification helper, and then launches the real GPG executable while
+preserving process behavior.
 
 ```text
 Git
@@ -20,13 +24,37 @@ gpg.exe -> gpg-agent -> smart card / YubiKey
 
 ## Process transparency
 
-The wrapper must preserve command-line arguments, stdin, stdout, stderr, the exit code, and the synchronous lifetime expected by Git.
+The wrapper uses `ProcessStartInfo.ArgumentList` and raw stream pumps rather
+than a shell command line. It preserves command-line argument semantics,
+stdin, stdout, stderr, the exit code, and the synchronous lifetime expected by
+Git. The notification helper is a separate invocation of the same executable,
+so its ten-second display lifetime does not delay the GPG child or Git.
 
 A notification failure must never cause signing itself to fail.
 
 ## Real GPG resolution
 
-The downstream GPG path should be absolute and must never resolve back to TajsToucher. Setup should discover and persist the actual executable explicitly to prevent recursion.
+The downstream GPG path is absolute and must never resolve back to
+TajsToucher. Installation checks the saved path, the GnuPG `gpgconf` bindir,
+standard Program Files locations, and PATH. It persists the selected path in
+the per-user `HKCU\Software\TajsToucher` key so normal proxy invocations do
+not depend on PATH ordering.
+
+The previous global Git program setting is stored alongside it. Uninstall is
+conditional: it restores the previous value only when the current value still
+identifies the installed wrapper.
+
+## Operation detection and notification
+
+The classifier recognizes GnuPG's long signing options and short options used
+by Git, including `-bsau`. It stops interpreting arguments after `--` and
+gives explicit verification options precedence over signing options. Repository
+context is best-effort metadata from `git rev-parse --show-toplevel`; a failed
+lookup simply omits the repository name.
+
+Notification launching is fail-open and intentionally silent on failure. The
+helper uses WinForms `NotifyIcon` and is isolated from Git's standard handles
+with redirected streams, preventing it from keeping Git pipes open.
 
 ## Future adapter model
 
