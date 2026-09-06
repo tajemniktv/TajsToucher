@@ -33,22 +33,20 @@ dotnet restore TajsToucher.sln
 dotnet build src\TajsToucher\TajsToucher.csproj -c Release
 ```
 
-For a small single-file executable on a machine with the .NET 10 Windows
-Desktop runtime installed, publish for Windows x64:
+For a framework-dependent Windows x64 build (the WinUI 3 runtime payload is
+kept beside the executable), publish for Windows x64:
 
 ```powershell
 dotnet publish src\TajsToucher\TajsToucher.csproj `
   -c Release -r win-x64 --self-contained false `
-  -p:PublishSingleFile=true `
   -o artifacts\publish\framework-dependent
 ```
 
-For a self-contained single-file executable with no .NET prerequisite:
+For a self-contained Windows x64 folder with no .NET prerequisite:
 
 ```powershell
 dotnet publish src\TajsToucher\TajsToucher.csproj `
   -c Release -r win-x64 --self-contained true `
-  -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true `
   -o artifacts\publish\win-x64
 ```
 
@@ -68,15 +66,16 @@ artifacts\publish\win-x64\TajsToucher.exe uninstall
 restores the previous value only if Git still points at the same wrapper; it
 will not overwrite a setting changed by the user in the meantime.
 
-Launching the executable without arguments opens the TajsToucher app. The Home
-screen shows whether Git signing is connected, whether the real GnuPG executable
-is available, and provides quick actions. The **Settings** screen lets you
-configure the notification title, notification text, and an optional `.ico`
-file. Use `{Repository}` in either field to insert the current repository name.
-If the text does not contain that token, the repository name is appended
-automatically when available. The **Test notification** button saves the
-current values and launches a sample notification. The **Enabled for** screen
-currently lists Git/OpenPGP signing and leaves room for future adapters.
+Launching the executable without arguments opens the WinUI 3 TajsToucher app.
+The Home dashboard is the primary control surface: it shows whether Git signing
+is connected, whether the real GnuPG executable is available, exposes install,
+uninstall, and test-notification actions, embeds notification personalization,
+and lists the enabled adapters. The separate **Settings** and **Enabled for**
+pages are navigation shortcuts to the same capabilities. Settings include the
+notification title, notification text, and an optional `.ico` file. Use
+`{Repository}` in either field to insert the current repository name. If the
+text does not contain that token, the repository name is appended automatically
+when available.
 
 Closing the app window hides TajsToucher to the system tray instead of stopping
 it. Double-click the tray icon, or use its menu, to reopen the dashboard,
@@ -123,11 +122,12 @@ executable.
 
 ## Translucent Windows compatibility
 
-The app requests the Windows 11 main-window DWM backdrop and extends that
-material through the client area. Its app surfaces use alpha-backed fills and
-avoid fixed WinForms borders, so Windhawk's **Translucent Windows** mod can
-provide the window material without turning the cards into opaque white boxes
-or accent-colored outlines.
+The dashboard is a WinUI 3/XAML app rather than a WinForms surface. Its page
+backgrounds stay transparent and cards use lightly alpha-backed brushes, so
+Windhawk's **Translucent Windows** mod can provide the window material without
+the old hard-coded WinForms canvas and borders fighting it. The tray and
+notification helpers use native Win32 APIs and do not bring WinForms back into
+the dashboard.
 
 If the mod still makes text or controls unreadable, add `TajsToucher.exe` as a
 per-process rule in the mod settings and disable custom theme rendering and

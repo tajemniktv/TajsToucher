@@ -1,0 +1,42 @@
+<Window
+    x:Class="TajsToucher.MainWindow"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+    xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+    mc:Ignorable="d"
+    Title="TajsToucher">
+    <Grid Background="Transparent">
+        <NavigationView x:Name="AppNavigation"
+                        IsBackButtonVisible="Collapsed"
+                        IsSettingsVisible="False"
+                        IsPaneToggleButtonVisible="False"
+                        PaneDisplayMode="Left"
+                        Background="Transparent"
+                        SelectionChanged="OnNavigationSelectionChanged">
+            <NavigationView.PaneHeader>
+                <StackPanel Padding="22,28,22,18" Spacing="8">
+                    <TextBlock Text="Your signing companion"
+                               Foreground="{StaticResource SidebarActiveBrush}"
+                               FontSize="13" />
+                    <TextBlock Text="TajsToucher"
+                               Foreground="White"
+                               FontSize="24"
+                               FontWeight="SemiBold" />
+                </StackPanel>
+            </NavigationView.PaneHeader>
+            <NavigationView.MenuItems>
+                <NavigationViewItem Content="Home" Tag="Home" Icon="Home" IsSelected="True" />
+                <NavigationViewItem Content="Settings" Tag="Settings" Icon="Setting" />
+                <NavigationViewItem Content="Enabled for" Tag="EnabledFor" Icon="Permissions" />
+            </NavigationView.MenuItems>
+            <NavigationView.PaneFooter>
+                <TextBlock Text="Local-first  ·  Windows"
+                           Foreground="{StaticResource SidebarActiveBrush}"
+                           Margin="22,18,22,22"
+                           FontSize="12" />
+            </NavigationView.PaneFooter>
+            <Frame x:Name="ContentFrame" />
+        </NavigationView>
+    </Grid>
+</Window>

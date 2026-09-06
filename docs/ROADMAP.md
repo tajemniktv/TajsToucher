@@ -26,8 +26,9 @@ Success criterion: it can sit in the signing path for weeks without being intere
 Possible follow-ups after v0.1 is boringly reliable:
 
 - [x] configurable notification icon, title, and text through the settings GUI;
-- [x] desktop app shell with a status dashboard, settings page, and enabled-adapters page;
-- [x] tray-resident app shell with dashboard reopening and explicit exit;
+- [x] WinUI 3 desktop app shell with a status dashboard, settings page, and enabled-adapters page;
+- [x] unified dashboard control surface for status, installation, personalization, testing, and enabled adapters;
+- [x] native tray-resident app shell with dashboard reopening and explicit exit;
 - optional sound;
 - notification cooldown/deduplication;
 - better context for commit vs tag signing;

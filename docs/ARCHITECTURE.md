@@ -53,27 +53,28 @@ context is best-effort metadata from `git rev-parse --show-toplevel`; a failed
 lookup simply omits the repository name.
 
 Notification launching is fail-open and intentionally silent on failure. The
-helper uses WinForms `NotifyIcon` and is launched with handle inheritance
-disabled, preventing it from keeping Git pipes open.
+helper is a short-lived native Win32 notification-area host and is launched
+with handle inheritance disabled, preventing it from keeping Git pipes open.
 
-The desktop shell also applies the Windows 11 DWM main-window backdrop and
-extends the frame through the client area. Shell cards deliberately avoid
-fixed WinForms borders and use alpha-backed panel surfaces where WinForms
-supports them. This keeps the native app compatible with Windhawk's
-Translucent Windows rendering instead of hard-coding an opaque white canvas.
+The desktop shell is an unpackaged WinUI 3 application. XAML page backgrounds
+remain transparent and cards use alpha-backed brushes, leaving the DWM and
+Windhawk material visible rather than painting a hard-coded WinForms canvas.
+The persistent tray icon is also a small native Win32 host, so the dashboard
+does not need a WinForms dependency.
 
 ## Desktop app and settings UI
 
-Launching the executable without arguments opens the WinForms app shell. Its
-Home page reads the current installation state and Git configuration to show a
-truthful status for Git signing and real GnuPG availability. Settings is a
-separate page for the notification title, notification text, and optional `.ico`
-path; it previews the icon, validates values, and can launch a test
-notification. The Enabled for page currently exposes only the Git/OpenPGP
-signing adapter and reserves space for future adapters. `{Repository}` is a
-supported template token. Settings live in the same per-user registry key as
-installation state but use separate values; uninstall removes only wrapper
-state and leaves notification customization intact.
+Launching the executable without arguments opens the WinUI 3 app shell. Its
+Home dashboard reads the current installation state and Git configuration to
+show a truthful status for Git signing and real GnuPG availability. The same
+dashboard embeds the settings editor, test notification, install/uninstall
+actions, and enabled-adapter summary; separate Settings and Enabled for pages
+are shortcuts for navigation and future growth. Settings include the
+notification title, notification text, and optional `.ico` path; the editor
+previews the icon, validates values, and can launch a test notification.
+`{Repository}` is a supported template token. Settings live in the same
+per-user registry key as installation state but use separate values; uninstall
+removes only wrapper state and leaves notification customization intact.
 
 The shell is tray-resident: a user-initiated window close hides the form while
 leaving the process and tray icon alive. The tray menu can navigate to each app
