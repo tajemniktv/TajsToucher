@@ -43,4 +43,17 @@ public sealed class OperationClassifierTests
         Assert.AreEqual("\"quote\\\"value\"", WindowsArgumentQuoter.Quote("quote\"value"));
         Assert.AreEqual("plain", WindowsArgumentQuoter.Quote("plain"));
     }
+
+    [TestMethod]
+    public void RendersRepositoryTemplateToken()
+    {
+        Assert.AreEqual("Sign from Demo.", NotificationTemplate.Render("Sign from {Repository}.", "Demo"));
+        Assert.AreEqual("Sign from unknown.", NotificationTemplate.Render("Sign from {Repository}.", null));
+    }
+
+    [TestMethod]
+    public void AppendsRepositoryWhenCustomTextOmitsToken()
+    {
+        Assert.AreEqual("Touch the key. Repository: Demo.", NotificationTemplate.Render("Touch the key.", "Demo"));
+    }
 }

@@ -9,12 +9,17 @@ internal static class CliHelp
         Console.WriteLine("TajsToucher - fail-open Windows notifications for Git OpenPGP signing");
         Console.WriteLine();
         Console.WriteLine("Usage:");
+        Console.WriteLine("  TajsToucher.exe");
+        Console.WriteLine("  TajsToucher.exe app");
         Console.WriteLine("  TajsToucher.exe install");
         Console.WriteLine("  TajsToucher.exe uninstall");
         Console.WriteLine("  TajsToucher.exe diagnose");
+        Console.WriteLine("  TajsToucher.exe settings");
+        Console.WriteLine("  TajsToucher.exe proxy");
         Console.WriteLine("  TajsToucher.exe <gpg arguments>");
         Console.WriteLine();
-        Console.WriteLine("The default mode is the Git-configured GPG proxy.");
+        Console.WriteLine("Launching without arguments opens the app dashboard.");
+        Console.WriteLine("GPG arguments are forwarded to the real GnuPG executable.");
         return 0;
     }
 

@@ -4,14 +4,14 @@ internal static class NotificationService
 {
     private const int BalloonDurationMilliseconds = 10_000;
 
-    public static void TryLaunch(string? repositoryName)
+    public static bool TryLaunch(string? repositoryName)
     {
         try
         {
             var executable = Environment.ProcessPath;
             if (string.IsNullOrWhiteSpace(executable))
             {
-                return;
+                return false;
             }
 
             var arguments = new List<string> { "--notify" };
@@ -22,12 +22,13 @@ internal static class NotificationService
 
             // Use bInheritHandles=false so a ten-second notification cannot
             // keep Git's stdin/stdout/stderr pipes alive after GPG exits.
-            _ = DetachedProcessLauncher.TryLaunch(executable, arguments);
+            return DetachedProcessLauncher.TryLaunch(executable, arguments);
         }
         catch
         {
             // Notifications are explicitly fail-open. Signing must continue
             // even when Explorer or the helper process is unavailable.
+            return false;
         }
     }
 
@@ -35,30 +36,39 @@ internal static class NotificationService
     {
         Application.SetHighDpiMode(HighDpiMode.SystemAware);
 
-        using var icon = new NotifyIcon
+        var settings = new ConfigurationStore().LoadNotificationSettings();
+        var customIcon = NotificationIconLoader.TryLoad(settings.IconPath);
+        try
         {
-            Icon = SystemIcons.Information,
-            Visible = true,
-            BalloonTipIcon = ToolTipIcon.Info,
-            BalloonTipTitle = "YubiKey yearns touching",
-            BalloonTipText = BuildMessage(repositoryName),
-        };
-        using var timer = new System.Windows.Forms.Timer { Interval = BalloonDurationMilliseconds };
-        timer.Tick += (_, _) =>
+            using var icon = new NotifyIcon
+            {
+                Icon = customIcon ?? SystemIcons.Information,
+                Visible = true,
+                BalloonTipIcon = ToolTipIcon.Info,
+                BalloonTipTitle = RenderTitle(settings.Title, repositoryName),
+                BalloonTipText = NotificationTemplate.Render(settings.Text, repositoryName),
+            };
+            using var timer = new System.Windows.Forms.Timer { Interval = BalloonDurationMilliseconds };
+            timer.Tick += (_, _) =>
+            {
+                timer.Stop();
+                icon.Visible = false;
+                Application.ExitThread();
+            };
+            timer.Start();
+            icon.ShowBalloonTip(BalloonDurationMilliseconds);
+            Application.Run();
+            return 0;
+        }
+        finally
         {
-            timer.Stop();
-            icon.Visible = false;
-            Application.ExitThread();
-        };
-        timer.Start();
-        icon.ShowBalloonTip(BalloonDurationMilliseconds);
-        Application.Run();
-        return 0;
+            customIcon?.Dispose();
+        }
     }
 
-    private static string BuildMessage(string? repositoryName)
+    private static string RenderTitle(string title, string? repositoryName)
     {
-        var message = "Git is requesting an OpenPGP signature. Please touchy touch the YubiKey while it flashes.";
-        return string.IsNullOrWhiteSpace(repositoryName) ? message : $"{message} Repository: {repositoryName}.";
+        return title.Replace("{Repository}", repositoryName ?? "unknown", StringComparison.OrdinalIgnoreCase);
     }
+
 }

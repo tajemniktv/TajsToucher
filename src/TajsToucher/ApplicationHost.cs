@@ -11,7 +11,7 @@ internal static class ApplicationHost
 
         if (args.Count == 0)
         {
-            return GpgProxy.Run(Array.Empty<string>());
+            return AppShellLauncher.Show();
         }
 
         // Only exact, one-argument bare subcommands are reserved. This keeps
@@ -27,6 +27,9 @@ internal static class ApplicationHost
             "install" => Installer.Install(),
             "uninstall" => Installer.Uninstall(),
             "diagnose" => Diagnostics.Run(),
+            "app" => AppShellLauncher.Show(),
+            "settings" => SettingsLauncher.Show(),
+            "proxy" => GpgProxy.Run(Array.Empty<string>()),
             "help" => CliHelp.Print(),
             "version" => CliHelp.PrintVersion(),
             _ => GpgProxy.Run(args),

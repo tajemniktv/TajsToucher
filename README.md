@@ -55,8 +55,10 @@ dotnet publish src\TajsToucher\TajsToucher.csproj `
 Run the published executable from its final location:
 
 ```powershell
+artifacts\publish\win-x64\TajsToucher.exe
 artifacts\publish\win-x64\TajsToucher.exe install
 artifacts\publish\win-x64\TajsToucher.exe diagnose
+artifacts\publish\win-x64\TajsToucher.exe settings
 artifacts\publish\win-x64\TajsToucher.exe uninstall
 ```
 
@@ -66,10 +68,28 @@ artifacts\publish\win-x64\TajsToucher.exe uninstall
 restores the previous value only if Git still points at the same wrapper; it
 will not overwrite a setting changed by the user in the meantime.
 
-The executable's default mode is the GPG proxy. The `install`, `uninstall`,
-`diagnose`, `help`, and `version` subcommands are reserved only when supplied
-as the single bare argument, so GPG options such as `--help` and `--version`
-are forwarded unchanged.
+Launching the executable without arguments opens the TajsToucher app. The Home
+screen shows whether Git signing is connected, whether the real GnuPG executable
+is available, and provides quick actions. The **Settings** screen lets you
+configure the notification title, notification text, and an optional `.ico`
+file. Use `{Repository}` in either field to insert the current repository name.
+If the text does not contain that token, the repository name is appended
+automatically when available. The **Test notification** button saves the
+current values and launches a sample notification. The **Enabled for** screen
+currently lists Git/OpenPGP signing and leaves room for future adapters.
+
+Closing the app window hides TajsToucher to the system tray instead of stopping
+it. Double-click the tray icon, or use its menu, to reopen the dashboard,
+Settings, or Enabled for. **Exit TajsToucher** in that menu terminates the app.
+
+`settings` opens the same app directly on the Settings screen. `app` opens the
+Home screen explicitly.
+
+When Git invokes the executable with GPG arguments, it acts as a transparent
+GPG proxy. The `install`, `uninstall`, `diagnose`, `app`, `settings`, `proxy`,
+`help`, and `version` subcommands are reserved only when supplied as the single
+bare argument, so GPG options such as `--help` and `--version` are forwarded
+unchanged. `proxy` is the explicit no-argument proxy mode.
 
 Run the tests with:
 
@@ -92,9 +112,27 @@ The wrapper:
   does not extend Git's synchronous GPG operation; and
 - treats notification failures as non-fatal.
 
+Notification settings are stored per-user under
+`HKCU\Software\TajsToucher` and are separate from installation state, so
+uninstalling the Git wrapper does not discard the user's notification
+customization.
+
 The older `gpg-git-notify.cmd` and `gpg-touch-notify.ps1` files are retained as
 legacy proof-of-concept references. New installations should use the native
 executable.
+
+## Translucent Windows compatibility
+
+The app requests the Windows 11 main-window DWM backdrop and extends that
+material through the client area. Its app surfaces use alpha-backed fills and
+avoid fixed WinForms borders, so Windhawk's **Translucent Windows** mod can
+provide the window material without turning the cards into opaque white boxes
+or accent-colored outlines.
+
+If the mod still makes text or controls unreadable, add `TajsToucher.exe` as a
+per-process rule in the mod settings and disable custom theme rendering and
+accent colorization for that process. This is preferable to a global exclusion
+when the mod's **New system colors** option is enabled.
 
 ## Possible future direction
 

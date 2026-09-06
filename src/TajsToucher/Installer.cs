@@ -92,7 +92,7 @@ internal static class Installer
 
         try
         {
-            store.Clear();
+            store.ClearInstallationState();
         }
         catch (Exception exception) when (exception is UnauthorizedAccessException or IOException)
         {

@@ -46,6 +46,31 @@ internal sealed class ConfigurationStore
         return new InstallationState(wrapperPath, realGpgPath, previousPrograms);
     }
 
+    public NotificationSettings LoadNotificationSettings()
+    {
+        using var key = Registry.CurrentUser.OpenSubKey(RegistryPath, writable: false);
+        if (key is null)
+        {
+            return NotificationSettings.Defaults;
+        }
+
+        return new NotificationSettings(
+                key.GetValue("NotificationTitle") as string ?? NotificationSettings.DefaultTitle,
+                key.GetValue("NotificationText") as string ?? NotificationSettings.DefaultText,
+                key.GetValue("NotificationIconPath") as string ?? string.Empty)
+            .Normalize();
+    }
+
+    public void SaveNotificationSettings(NotificationSettings settings)
+    {
+        var normalized = settings.Normalize();
+        using var key = Registry.CurrentUser.CreateSubKey(RegistryPath, writable: true)
+                       ?? throw new InvalidOperationException("The per-user configuration key could not be created.");
+        key.SetValue("NotificationTitle", normalized.Title, RegistryValueKind.String);
+        key.SetValue("NotificationText", normalized.Text, RegistryValueKind.String);
+        key.SetValue("NotificationIconPath", normalized.IconPath, RegistryValueKind.String);
+    }
+
     public void Save(InstallationState state)
     {
         using var key = Registry.CurrentUser.CreateSubKey(RegistryPath, writable: true)
@@ -67,8 +92,33 @@ internal sealed class ConfigurationStore
         }
     }
 
-    public void Clear()
+    public void ClearInstallationState()
     {
-        Registry.CurrentUser.DeleteSubKeyTree(RegistryPath, throwOnMissingSubKey: false);
+        bool empty;
+        using (var key = Registry.CurrentUser.OpenSubKey(RegistryPath, writable: true))
+        {
+            if (key is null)
+            {
+                return;
+            }
+
+            key.DeleteValue("WrapperPath", throwOnMissingValue: false);
+            key.DeleteValue("RealGpgPath", throwOnMissingValue: false);
+            var count = key.GetValue("PreviousProgramCount") is int storedCount && storedCount >= 0 && storedCount <= 32
+                ? storedCount
+                : 0;
+            key.DeleteValue("PreviousProgramCount", throwOnMissingValue: false);
+            for (var index = 0; index < count; index++)
+            {
+                key.DeleteValue($"PreviousProgram{index}", throwOnMissingValue: false);
+            }
+
+            empty = key.GetValueNames().Length == 0;
+        }
+
+        if (empty)
+        {
+            Registry.CurrentUser.DeleteSubKeyTree(RegistryPath, throwOnMissingSubKey: false);
+        }
     }
 }
