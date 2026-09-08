@@ -8,9 +8,12 @@ internal sealed record AppStatus(
 {
     public bool WrapperAvailable { get; init; }
     public bool GitConfigurationReadable { get; init; }
+    public bool StatusReadFailed { get; init; }
     public bool IsReady => IsInstalled && GitConfigurationReadable && GitConfigurationMatches && WrapperAvailable && RealGpgAvailable;
 
-    public string Summary => !GitConfigurationReadable
+    public string Summary => StatusReadFailed
+        ? "Setup status could not be read. Run diagnose for details."
+        : !GitConfigurationReadable
         ? "Git's global configuration could not be read. Check that Git is installed and run diagnose."
         : !IsInstalled ? "No saved installation. Use Install for Git to connect the wrapper."
         : !WrapperAvailable ? "The installed wrapper is missing. Install again from the executable's final location."

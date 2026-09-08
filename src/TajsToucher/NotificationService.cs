@@ -25,7 +25,7 @@ internal static class NotificationService
 
             // Use bInheritHandles=false so a ten-second notification cannot keep Git's pipes alive
             // after GPG exits. Notifications are deliberately detached and fail-open.
-            return DetachedProcessLauncher.TryLaunch(executable, arguments);
+            return DetachedProcessLauncher.TryLaunch(executable, arguments, HelperDispatch.Notification);
         }
         catch
         {
@@ -46,10 +46,6 @@ internal static class NotificationService
         if (!operationEvent.IsValid) return 2;
         // An explicitly enabled failure alert should not be hidden by its own start prompt.
         bypassCooldown |= operationEvent.Phase == OperationPhase.Failed;
-        if (!bypassCooldown && !NotificationCooldown.TryAcquire(settings.CooldownSeconds))
-        {
-            return 0;
-        }
         using var customIcon = NotificationIconLoader.TryLoad(settings.IconPath);
         var presentation = FormatEvent(operationEvent, settings, repositoryName);
         using var host = new NativeNotificationHost(
@@ -57,7 +53,7 @@ internal static class NotificationService
             presentation.Message,
             customIcon,
             settings.PlaySound);
-        host.Show();
+        if (!NotificationCooldown.TryShow(bypassCooldown ? 0 : settings.CooldownSeconds, host.Show)) return 0;
         host.Run();
         return 0;
     }
@@ -166,8 +162,10 @@ internal static class NotificationService
             data.InfoTitle = Truncate(title, 63);
             data.Info = Truncate(message, 255);
             data.InfoFlags = NiifInfo | (playSound ? 0 : NiifNoSound);
-            _ = Shell_NotifyIconW(NimModify, ref data);
-            _ = SetTimer(windowHandle, TimerId, BalloonDurationMilliseconds, 0);
+            if (!Shell_NotifyIconW(NimModify, ref data))
+                throw new Win32Exception(Marshal.GetLastWin32Error(), "Could not display the notification.");
+            if (SetTimer(windowHandle, TimerId, BalloonDurationMilliseconds, 0) == 0)
+                throw new Win32Exception(Marshal.GetLastWin32Error(), "Could not start the notification timer.");
         }
 
         public void Run()

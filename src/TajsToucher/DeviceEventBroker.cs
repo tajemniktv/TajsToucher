@@ -9,6 +9,7 @@ internal sealed class DeviceEventBroker : IAsyncDisposable
     private readonly Channel<DeviceSignal> queue = Channel.CreateBounded<DeviceSignal>(new BoundedChannelOptions(64)
     { SingleReader = true, FullMode = BoundedChannelFullMode.DropOldest });
     private readonly Task worker;
+    private readonly CancellationTokenSource stopping = new();
     private readonly Func<NotificationSettings> settings;
     private readonly Action<DeviceSignal> diagnostic;
     private readonly Action<string, NotificationSettings> notify;
@@ -16,7 +17,8 @@ internal sealed class DeviceEventBroker : IAsyncDisposable
 
     public DeviceEventBroker() : this(() => new ConfigurationStore().LoadNotificationSettings(),
         signal => new DiagnosticEventSink(DiagnosticEventSink.DefaultDirectory).Append(Format(signal)),
-        App.ShowDeviceNotice) { }
+        App.ShowDeviceNotice)
+    { }
 
     internal DeviceEventBroker(Func<NotificationSettings> settings, Action<DeviceSignal> diagnostic,
         Action<string, NotificationSettings> notify)
@@ -29,20 +31,26 @@ internal sealed class DeviceEventBroker : IAsyncDisposable
 
     private async Task ConsumeAsync()
     {
-        await foreach (var signal in queue.Reader.ReadAllAsync())
+        try
         {
-            NotificationSettings current;
-            try { current = settings(); } catch { continue; }
-            if (current.RecordDiagnostics)
-                try { diagnostic(signal); } catch { /* Other sinks remain independent. */ }
-            var message = Notice(signal, current);
-            if (message is null) continue;
-            // Presence noise is coalesced across keys; low-retry notices repeat at most every five minutes.
-            var delay = signal.Kind == DeviceSignalKind.LowRetries ? TimeSpan.FromMinutes(5) : TimeSpan.FromSeconds(3);
-            if (lastNotice.TryGetValue(signal.Kind, out var previous) && signal.Timestamp - previous < delay) continue;
-            lastNotice[signal.Kind] = signal.Timestamp;
-            try { notify(message, current); } catch { }
+            await foreach (var signal in queue.Reader.ReadAllAsync(stopping.Token))
+            {
+                stopping.Token.ThrowIfCancellationRequested(); // ReadAllAsync may yield buffered items after cancellation.
+                NotificationSettings current;
+                try { current = settings(); } catch { continue; }
+                if (current.RecordDiagnostics)
+                    try { diagnostic(signal); } catch { /* Other sinks remain independent. */ }
+                stopping.Token.ThrowIfCancellationRequested();
+                var message = Notice(signal, current);
+                if (message is null) continue;
+                // Presence noise is coalesced across keys; low-retry notices repeat at most every five minutes.
+                var delay = signal.Kind == DeviceSignalKind.LowRetries ? TimeSpan.FromMinutes(5) : TimeSpan.FromSeconds(3);
+                if (lastNotice.TryGetValue(signal.Kind, out var previous) && signal.Timestamp >= previous && signal.Timestamp - previous < delay) continue;
+                lastNotice[signal.Kind] = signal.Timestamp;
+                try { notify(message, current); } catch { }
+            }
         }
+        catch (OperationCanceledException) when (stopping.IsCancellationRequested) { }
     }
 
     internal static string? Notice(DeviceSignal signal, NotificationSettings settings) => signal.Kind switch
@@ -59,6 +67,7 @@ internal sealed class DeviceEventBroker : IAsyncDisposable
 
     public async ValueTask DisposeAsync()
     {
+        stopping.Cancel();
         queue.Writer.TryComplete();
         await worker.ConfigureAwait(false);
     }

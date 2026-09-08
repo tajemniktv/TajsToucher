@@ -4,12 +4,17 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
     <DebugType>embedded</DebugType>
+    <YubicoSdkVersion>1.17.3</YubicoSdkVersion>
   </PropertyGroup>
   <ItemGroup>
     <InternalsVisibleTo Include="TajsToucher.Tests" />
-    <PackageReference Include="Yubico.YubiKey" Version="1.17.3" GeneratePathProperty="true" />
-    <None Include="$(NuGetPackageRoot)yubico.yubikey/1.17.3/LICENSE.txt" Link="licenses/Yubico.YubiKey.txt" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
-    <None Include="$(NuGetPackageRoot)yubico.core/1.17.3/LICENSE.txt" Link="licenses/Yubico.Core.txt" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
+    <PackageReference Include="Yubico.YubiKey" Version="$(YubicoSdkVersion)" GeneratePathProperty="true" />
+    <PackageReference Include="Yubico.Core" Version="$(YubicoSdkVersion)" GeneratePathProperty="true" />
+    <None Include="$(PkgYubico_YubiKey)/LICENSE.txt" Link="licenses/Yubico.YubiKey.txt" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
+    <None Include="$(PkgYubico_Core)/LICENSE.txt" Link="licenses/Yubico.Core.txt" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
     <None Include="ThirdPartyNotices.txt" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
   </ItemGroup>
+  <Target Name="ValidateSdkLicenses" BeforeTargets="PrepareForBuild">
+    <Error Condition="!Exists('$(PkgYubico_YubiKey)/LICENSE.txt') Or !Exists('$(PkgYubico_Core)/LICENSE.txt')" Text="Required Yubico SDK license files are missing. Restore the pinned packages before building." />
+  </Target>
 </Project>

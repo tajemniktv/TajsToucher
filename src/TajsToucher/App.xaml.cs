@@ -87,8 +87,7 @@ public partial class App : Application
         exitRequested = true;
         if (DeviceFeatureLifetime is not null)
         {
-            try { await DeviceFeatureLifetime.DisposeAsync(); }
-            catch { /* Optional hardware support must not prevent exiting. */ }
+            await OptionalFeatureShutdown.DisposeAsync(DeviceFeatureLifetime, TimeSpan.FromSeconds(2));
             DeviceFeatureLifetime = null;
         }
         trayService.Dispose();

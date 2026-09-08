@@ -59,7 +59,7 @@
             <ToggleSwitch x:Name="DiagnosticsToggle" Header="Record operation diagnostics locally (opt-in)" />
             <ToggleSwitch x:Name="DevicePresenceToggle" Header="Key arrival/removal notices after starting discovery (opt-in)" />
             <ToggleSwitch x:Name="LowRetriesToggle" Header="Low-retry warning after an explicit application-status read (opt-in)" />
-            <TextBlock Text="Records timestamps, correlation IDs, operation types, exit codes, and wrapper elapsed time in two bounded local log files. No arguments, repository names, key IDs, error output, or payloads. Disabling recording retains existing files. Find them on Enabled for."
+            <TextBlock Text="Records timestamps, correlation IDs, operation types, exit codes, and wrapper elapsed time in two bounded local log files. No arguments, repository names, key IDs, error output, or payloads. Disabling recording retains existing files. Open the diagnostics folder from the Enabled for page."
                        TextWrapping="Wrap" Foreground="{StaticResource MutedBrush}" />
 
             <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Spacing="8" Margin="0,8,0,0">

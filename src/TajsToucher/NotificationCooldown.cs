@@ -6,28 +6,32 @@ namespace TajsToucher;
 internal static class NotificationCooldown
 {
     // Only notification helpers use this lock; the GPG forwarding process never waits on it.
-    public static bool TryAcquire(int seconds)
+    public static bool TryShow(int seconds, Action show)
     {
         if (seconds <= 0)
         {
+            show();
             return true;
         }
 
+        string mutexName;
         try
         {
             using var identity = WindowsIdentity.GetCurrent();
-            return TryAcquire(seconds, @"Software\TajsToucher\Runtime",
-                @"Local\TajsToucher.NotificationCooldown." + identity.User?.Value);
+            mutexName = @"Local\TajsToucher.NotificationCooldown." + identity.User?.Value;
         }
         catch
         {
+            show();
             return true;
         }
+        return TryShow(seconds, @"Software\TajsToucher\Runtime", mutexName, show);
     }
 
-    internal static bool TryAcquire(int seconds, string registryPath, string mutexName)
+    internal static bool TryShow(int seconds, string registryPath, string mutexName, Action show)
     {
-        if (seconds <= 0) return true;
+        if (seconds <= 0) { show(); return true; }
+        var showStarted = false;
         try
         {
             using var mutex = new Mutex(false, mutexName);
@@ -44,6 +48,8 @@ internal static class NotificationCooldown
                 using var key = Registry.CurrentUser.CreateSubKey(registryPath, writable: true);
                 if (key is null)
                 {
+                    showStarted = true;
+                    show();
                     return true;
                 }
 
@@ -54,7 +60,10 @@ internal static class NotificationCooldown
                     return false;
                 }
 
-                key.SetValue("LastNotificationUtcTicks", now, RegistryValueKind.QWord);
+                showStarted = true;
+                show(); // Keep the reservation locked until Windows accepts the notice.
+                try { key.SetValue("LastNotificationUtcTicks", DateTime.UtcNow.Ticks, RegistryValueKind.QWord); }
+                catch { /* A cooldown write failure cannot undo a successful notice. */ }
                 return true;
             }
             finally
@@ -62,9 +71,10 @@ internal static class NotificationCooldown
                 if (acquired) mutex.ReleaseMutex();
             }
         }
-        catch
+        catch when (!showStarted)
         {
             // Broken optional cooldown state must not suppress every future prompt.
+            show();
             return true;
         }
     }

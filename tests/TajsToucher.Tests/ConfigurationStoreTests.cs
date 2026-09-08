@@ -74,14 +74,43 @@ public sealed class ConfigurationStoreTests
         var accepted = 0;
         Parallel.For(0, 16, _ =>
         {
-            if (NotificationCooldown.TryAcquire(300, registryPath, mutexName))
+            if (NotificationCooldown.TryShow(300, registryPath, mutexName, () => { }))
                 Interlocked.Increment(ref accepted);
         });
         Assert.AreEqual(1, accepted);
-        Assert.IsFalse(NotificationCooldown.TryAcquire(300, registryPath, mutexName));
-        Assert.IsTrue(NotificationCooldown.TryAcquire(0, registryPath, mutexName));
+        Assert.IsFalse(NotificationCooldown.TryShow(300, registryPath, mutexName, () => { }));
+        Assert.IsTrue(NotificationCooldown.TryShow(0, registryPath, mutexName, () => { }));
         using var key = Registry.CurrentUser.OpenSubKey(registryPath, writable: true)!;
         key.SetValue("LastNotificationUtcTicks", long.MaxValue, RegistryValueKind.QWord);
-        Assert.IsTrue(NotificationCooldown.TryAcquire(300, registryPath, mutexName));
+        Assert.IsTrue(NotificationCooldown.TryShow(300, registryPath, mutexName, () => { }));
+    }
+
+    [TestMethod]
+    public void FailedNoticeDoesNotConsumeCooldown()
+    {
+        var mutex = @"Local\TajsToucher.Tests." + Guid.NewGuid().ToString("N");
+        Assert.ThrowsExactly<IOException>(() => NotificationCooldown.TryShow(300, registryPath, mutex, () => throw new IOException("show failed")));
+        Assert.IsTrue(NotificationCooldown.TryShow(300, registryPath, mutex, () => { }));
+        Assert.IsFalse(NotificationCooldown.TryShow(300, registryPath, mutex, () => Assert.Fail("Cooldown was not committed")));
+    }
+
+    [TestMethod]
+    public void SaveAndClearRemoveAllNumericBackupValuesRegardlessOfCorruptCount()
+    {
+        using var key = Registry.CurrentUser.CreateSubKey(registryPath);
+        key.SetValue("PreviousProgramCount", int.MaxValue);
+        key.SetValue("PreviousProgram99999999999999999999", "legacy");
+        key.SetValue("PreviousProgram33", "legacy");
+        key.SetValue("PreviousProgramNotes", "retain");
+        store.Save(new InstallationState("wrapper", "gpg", ["old"]));
+        Assert.IsNull(key.GetValue("PreviousProgram33"));
+        Assert.IsNull(key.GetValue("PreviousProgram99999999999999999999"));
+        Assert.AreEqual("old", key.GetValue("PreviousProgram0"));
+        key.SetValue("PreviousProgram33", "stale");
+        key.SetValue("PreviousProgramCount", "invalid");
+        store.ClearInstallationState();
+        Assert.IsNull(key.GetValue("PreviousProgram0"));
+        Assert.IsNull(key.GetValue("PreviousProgram33"));
+        Assert.AreEqual("retain", key.GetValue("PreviousProgramNotes"));
     }
 }

@@ -104,13 +104,7 @@ internal sealed class ConfigurationStore(string registryPath = "Software\\TajsTo
         key.SetValue("WrapperPath", state.WrapperPath, RegistryValueKind.String);
         key.SetValue("RealGpgPath", state.RealGpgPath, RegistryValueKind.String);
 
-        var oldCount = key.GetValue("PreviousProgramCount") is int storedCount
-            ? Math.Clamp(storedCount, 0, MaximumPreviousPrograms)
-            : 0;
-        for (var index = 0; index < oldCount; index++)
-        {
-            key.DeleteValue($"PreviousProgram{index}", throwOnMissingValue: false);
-        }
+        DeletePreviousPrograms(key);
 
         key.SetValue("PreviousProgramCount", state.PreviousOpenPgpPrograms.Count, RegistryValueKind.DWord);
         for (var index = 0; index < state.PreviousOpenPgpPrograms.Count; index++)
@@ -131,14 +125,8 @@ internal sealed class ConfigurationStore(string registryPath = "Software\\TajsTo
 
             key.DeleteValue("WrapperPath", throwOnMissingValue: false);
             key.DeleteValue("RealGpgPath", throwOnMissingValue: false);
-            var count = key.GetValue("PreviousProgramCount") is int storedCount && storedCount >= 0 && storedCount <= 32
-                ? storedCount
-                : 0;
             key.DeleteValue("PreviousProgramCount", throwOnMissingValue: false);
-            for (var index = 0; index < count; index++)
-            {
-                key.DeleteValue($"PreviousProgram{index}", throwOnMissingValue: false);
-            }
+            DeletePreviousPrograms(key);
 
             empty = key.GetValueNames().Length == 0;
         }
@@ -147,5 +135,14 @@ internal sealed class ConfigurationStore(string registryPath = "Software\\TajsTo
         {
             Registry.CurrentUser.DeleteSubKeyTree(registryPath, throwOnMissingSubKey: false);
         }
+    }
+
+    private static void DeletePreviousPrograms(RegistryKey key)
+    {
+        const string prefix = "PreviousProgram";
+        foreach (var name in key.GetValueNames())
+            if (name.StartsWith(prefix, StringComparison.OrdinalIgnoreCase) && name.Length > prefix.Length &&
+                name.AsSpan(prefix.Length).IndexOfAnyExceptInRange('0', '9') < 0)
+                key.DeleteValue(name, throwOnMissingValue: false);
     }
 }

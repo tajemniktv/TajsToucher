@@ -7,10 +7,8 @@ public sealed class OperationObservationTests
     public void DiagnosticsOnlyDoesNotCollectRepositoryAndCorrelatesOneOutcome()
     {
         var events = new List<OperationEvent>();
-        var repositoryLookups = 0;
         var observation = OperationObservation.TryStart(OpenPgpOperation.Decryption,
             NotificationSettings.Defaults with { RecordDiagnostics = true },
-            () => { repositoryLookups++; return "private repository"; },
             (operationEvent, repository) =>
             {
                 Assert.IsNull(repository);
@@ -19,7 +17,6 @@ public sealed class OperationObservationTests
         Assert.IsNotNull(observation);
         observation.Complete(17);
         observation.Complete(0);
-        Assert.AreEqual(0, repositoryLookups);
         Assert.AreEqual(2, events.Count);
         Assert.AreEqual(events[0].OperationId, events[1].OperationId);
         Assert.AreEqual(OperationPhase.Requested, events[0].Phase);
@@ -33,7 +30,7 @@ public sealed class OperationObservationTests
     {
         var calls = 0;
         Assert.IsNull(OperationObservation.TryStart(OpenPgpOperation.Encryption, NotificationSettings.Defaults,
-            () => { calls++; return null; }, (_, _) => calls++));
+            (_, _) => calls++));
         Assert.AreEqual(0, calls);
     }
 
@@ -43,7 +40,6 @@ public sealed class OperationObservationTests
         var attempts = 0;
         var observation = OperationObservation.TryStart(OpenPgpOperation.Signing,
             NotificationSettings.Defaults with { NotifyOnFailure = true },
-            () => throw new IOException("unavailable context"),
             (_, _) => { attempts++; throw new IOException("unavailable output"); });
         Assert.IsNotNull(observation);
         observation.Complete(2);
@@ -55,7 +51,7 @@ public sealed class OperationObservationTests
     {
         var calls = 0;
         var observation = OperationObservation.TryStart(OpenPgpOperation.Signing, NotificationSettings.Defaults,
-            () => null, (_, _) => calls++);
+            (_, repository) => { Assert.IsNull(repository); calls++; });
         Assert.IsNotNull(observation);
         observation.Complete(0);
         Assert.AreEqual(1, calls);

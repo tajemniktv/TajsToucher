@@ -98,7 +98,7 @@ internal static class OperationClassifier
             // (detach-sign) and -s (sign) are meaningful signing options.
             for (var index = 1; index < argument.Length; index++)
             {
-                if (argument[index] is 'u' or 'r' or 'o' or 'z')
+                if (argument[index] is 'u' or 'r' or 'R' or 'o' or 'z')
                 {
                     if (index == argument.Length - 1) argumentIndex++;
                     break;

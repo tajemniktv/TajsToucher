@@ -24,7 +24,7 @@ public sealed partial class HomePage : Page
         }
         catch (Exception exception) when (exception is IOException or InvalidOperationException or UnauthorizedAccessException)
         {
-            status = new AppStatus(false, false, false, null);
+            status = new AppStatus(false, false, false, null) { StatusReadFailed = true };
         }
 
         StatusDot.Foreground = status.IsReady ? (Microsoft.UI.Xaml.Media.Brush)Application.Current.Resources["SuccessBrush"] : (Microsoft.UI.Xaml.Media.Brush)Application.Current.Resources["WarningBrush"];

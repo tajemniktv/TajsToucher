@@ -56,4 +56,27 @@ public sealed class ProxyForwardingTests
             base.Dispose(disposing);
         }
     }
+
+    [TestMethod]
+    [Timeout(15000)]
+    public void ChildExitCancelsAndSettlesCooperativeInputCopy()
+    {
+        using var input = new CancellableInput();
+        using var output = new MemoryStream();
+        using var error = new MemoryStream();
+        Assert.AreEqual(19, GpgProxy.ForwardProcess("dotnet", [typeof(ProxyChild).Assembly.Location, "--proxy-child", "--ignore-input"], input, output, error));
+        Assert.IsTrue(input.Settled);
+        Assert.IsTrue(input.Token.IsCancellationRequested);
+    }
+    private sealed class CancellableInput : MemoryStream
+    {
+        public bool Settled { get; private set; }
+        public CancellationToken Token { get; private set; }
+        public override async Task CopyToAsync(Stream destination, int bufferSize, CancellationToken cancellationToken)
+        {
+            Token = cancellationToken;
+            try { await Task.Delay(Timeout.Infinite, cancellationToken); }
+            finally { Settled = true; }
+        }
+    }
 }

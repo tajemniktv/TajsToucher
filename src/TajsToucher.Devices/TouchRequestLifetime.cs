@@ -14,14 +14,15 @@ internal sealed class TouchRequestLifetime : IDisposable
 
     public bool Request(Action? signalCancel, Action? onRequest = null)
     {
+        Action? callback;
         lock (sync)
         {
             if (finished) return false;
             cancel = signalCancel;
-            if (cancelled) cancel?.Invoke();
-            else onRequest?.Invoke();
-            return true;
+            callback = cancelled ? cancel : onRequest;
         }
+        callback?.Invoke();
+        return true;
     }
 
     public void Release()
@@ -31,11 +32,13 @@ internal sealed class TouchRequestLifetime : IDisposable
 
     private void Cancel()
     {
+        Action? callback;
         lock (sync)
         {
             cancelled = true;
-            if (!finished) cancel?.Invoke();
+            callback = finished ? null : cancel;
         }
+        callback?.Invoke();
     }
 
     public void Dispose()

@@ -130,12 +130,14 @@ enable diagnostics; they never authorize, deny, or modify cryptographic work.
 NativeShims 1.17.2. Only an explicit Devices-page action (or `diagnose-devices`)
 constructs `YubiKeyService`. The GPG forwarding path does not load SDK assemblies.
 `DesktopDeviceFeature` owns the service and `DeviceEventBroker`; `App` awaits
-their disposal on explicit tray exit. Merely hiding the window leaves discovery
+their disposal for at most two seconds on explicit tray exit. Merely hiding the window leaves discovery
 running. Navigation cancels the page's own test and removes UI subscriptions.
 
 `IKeyDiscovery` separates listener/cache lifetime from inventory reconciliation.
-The SDK listener is subscribed once, presence refreshes debounce for 400 ms,
-and all enumeration/application sessions share a semaphore. Re-enumeration
+The SDK listener has a shared, reference-counted owner; only its final lease stops
+discovery. Presence refreshes debounce for 400 ms. Enumeration is serialized
+separately from per-device application sessions, so one touch wait does not block
+inventory or another key. Queued operations honor cancellation. Re-enumeration
 replaces stale handles. Serial numbers are used only in-memory for known-device
 identity; anonymous keys use reference identity, not SDK fingerprint equality.
 No application status refresh occurs automatically. Known-device removal can
@@ -146,6 +148,9 @@ busy, removed, permission-denied and timeout categories. Unsupported and unknown
 values remain distinct from zero retries. FIDO selection uses an independently
 synchronized touch lifetime because SDK callbacks can outlive command return;
 Release clears callback state, not the operation outcome.
+Callbacks run outside the lifetime lock. CTAP selection maps explicit response
+statuses instead of treating every negative result as cancellation. Empty PIV
+asymmetric slots are valid metadata results, not application failures.
 
 `DeviceSignal` is separate from `OpenPgpOperation`. It carries random correlation
 and ephemeral device IDs, occurrence time, kind and outcome. Device identity is
@@ -153,6 +158,7 @@ not written to logs. `DeviceEventBroker` consumes a bounded 64-entry queue,
 isolates notification/diagnostic failures and applies opt-in presence/retry
 rules. Native notices are dispatched to the existing resident tray, not a
 blocking helper loop. The existing rotating diagnostic writer is shared.
+Shutdown discards queued signals rather than draining diagnostic writes.
 The SDK's configurable console logger is disabled before discovery.
 
 There is no external plugin loader, automatic elevation, key configuration,

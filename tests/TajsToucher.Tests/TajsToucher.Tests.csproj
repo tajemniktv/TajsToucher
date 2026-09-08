@@ -10,6 +10,7 @@
     <Nullable>enable</Nullable>
   </PropertyGroup>
   <ItemGroup>
+    <EmbeddedResource Include="../../src/TajsToucher/MainWindow.xaml" LogicalName="MainWindow.xaml" />
     <ProjectReference Include="../../src/TajsToucher/TajsToucher.csproj" />
     <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.14.1" />
     <PackageReference Include="MSTest.TestAdapter" Version="3.10.4" />

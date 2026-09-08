@@ -92,8 +92,8 @@ when available.
 Settings also offer a Windows notification sound toggle and a cooldown of
 0–300 whole seconds. Sound remains enabled by default; Windows controls its
 actual audibility. Cooldown defaults to 0 (show every request). When enabled,
-it suppresses repeated signing prompts across repositories for this user.
-Test notifications bypass cooldown without consuming it. Cooldown state stores
+it suppresses repeated operation notices across enabled operations and repositories for this user.
+Enabled failure alerts and test notifications bypass cooldown without consuming it. Cooldown state stores
 only a timestamp; it does not record repository names or signing payloads.
 
 ### Broader OpenPGP notices and diagnostic events

@@ -3,18 +3,16 @@ namespace TajsToucher;
 internal sealed class OperationObservation
 {
     private readonly OperationEvent started;
-    private readonly string? repositoryName;
     private readonly bool recordDiagnostics;
     private readonly bool notifyOnFailure;
     private readonly Stopwatch stopwatch = Stopwatch.StartNew();
     private readonly Action<OperationEvent, string?> publish;
     private bool completed;
 
-    private OperationObservation(OpenPgpOperation operation, NotificationSettings settings, string? repositoryName,
+    private OperationObservation(OpenPgpOperation operation, NotificationSettings settings,
         Action<OperationEvent, string?> publish)
     {
         started = new OperationEvent(Guid.NewGuid(), DateTimeOffset.UtcNow, operation, OperationPhase.Requested);
-        this.repositoryName = repositoryName;
         this.publish = publish;
         recordDiagnostics = settings.RecordDiagnostics;
         notifyOnFailure = settings.NotifyOnFailure && NotificationPolicy.IsOperationEnabled(operation, settings);
@@ -27,7 +25,7 @@ internal sealed class OperationObservation
         try
         {
             var settings = new ConfigurationStore().LoadNotificationSettings();
-            return TryStart(operation.Value, settings, RepositoryContext.TryGetName, LaunchHelper);
+            return TryStart(operation.Value, settings, LaunchHelper);
         }
         catch
         {
@@ -36,20 +34,14 @@ internal sealed class OperationObservation
     }
 
     internal static OperationObservation? TryStart(OpenPgpOperation operation, NotificationSettings settings,
-        Func<string?> getRepository, Action<OperationEvent, string?> publish)
+        Action<OperationEvent, string?> publish)
     {
         try
         {
             if (!Enum.IsDefined(operation)) return null;
             var notify = NotificationPolicy.IsOperationEnabled(operation, settings);
             if (!notify && !settings.RecordDiagnostics) return null;
-            string? repository = null;
-            if (notify)
-            {
-                try { repository = getRepository(); }
-                catch { /* Optional context failure should not hide the operation. */ }
-            }
-            return new OperationObservation(operation, settings, repository, publish);
+            return new OperationObservation(operation, settings, publish);
         }
         catch
         {
@@ -75,7 +67,7 @@ internal sealed class OperationObservation
     {
         try
         {
-            publish(operationEvent, repositoryName);
+            publish(operationEvent, null);
         }
         catch
         {
@@ -86,7 +78,7 @@ internal sealed class OperationObservation
     private static void LaunchHelper(OperationEvent operationEvent, string? repositoryName)
     {
         if (Environment.ProcessPath is { Length: > 0 } executable)
-            _ = DetachedProcessLauncher.TryLaunch(executable, OperationEventCodec.Encode(operationEvent, repositoryName));
+            _ = DetachedProcessLauncher.TryLaunch(executable, OperationEventCodec.Encode(operationEvent, repositoryName), HelperDispatch.Operation);
     }
 
     public static int RunHelper(IReadOnlyList<string> args)
@@ -95,6 +87,11 @@ internal sealed class OperationObservation
         try
         {
             var settings = new ConfigurationStore().LoadNotificationSettings();
+            if (repository is null && NotificationPolicy.ShouldNotify(operationEvent!, settings))
+            {
+                try { repository = RepositoryContext.TryGetName(); }
+                catch { /* Optional display context is resolved only in this detached helper. */ }
+            }
             var sinks = new List<IOperationEventSink>();
             if (settings.RecordDiagnostics) sinks.Add(new DiagnosticEventSink(DiagnosticEventSink.DefaultDirectory));
             sinks.Add(new NotificationEventSink(settings, repository));

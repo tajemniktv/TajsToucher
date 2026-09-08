@@ -38,6 +38,10 @@ public sealed class DiagnosticEventSinkTests
                 OpenPgpOperation.Signing, OperationPhase.Requested));
             Assert.AreEqual(0, directory.GetFiles().Length);
         }
-        finally { directory.Delete(); }
+        finally
+        {
+            foreach (var file in directory.GetFiles()) file.Delete();
+            directory.Delete();
+        }
     }
 }
