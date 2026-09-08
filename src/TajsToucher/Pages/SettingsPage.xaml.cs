@@ -19,6 +19,13 @@ public sealed partial class SettingsPage : Page
 
     public event EventHandler? SettingsSaved;
 
+    internal void ConfigureEmbedded()
+    {
+        PageContent.Padding = new Thickness(0);
+        PageScroll.VerticalScrollMode = ScrollMode.Disabled;
+        PageScroll.VerticalScrollBarVisibility = ScrollBarVisibility.Disabled;
+    }
+
     internal void ReloadSettings()
     {
         LoadSettings(configurationStore.LoadNotificationSettings());
@@ -29,6 +36,15 @@ public sealed partial class SettingsPage : Page
         TitleTextBox.Text = settings.Title;
         TextTextBox.Text = settings.Text;
         IconPathTextBox.Text = settings.IconPath;
+        SoundToggle.IsOn = settings.PlaySound;
+        CooldownNumberBox.Value = settings.CooldownSeconds;
+        SigningToggle.IsOn = settings.NotifyOnSigning;
+        EncryptionToggle.IsOn = settings.NotifyOnEncryption;
+        DecryptionToggle.IsOn = settings.NotifyOnDecryption;
+        FailureToggle.IsOn = settings.NotifyOnFailure;
+        DiagnosticsToggle.IsOn = settings.RecordDiagnostics;
+        DevicePresenceToggle.IsOn = settings.NotifyOnDevicePresence;
+        LowRetriesToggle.IsOn = settings.NotifyOnLowRetries;
         UpdateIconPreview();
     }
 
@@ -80,7 +96,7 @@ public sealed partial class SettingsPage : Page
         {
             configurationStore.SaveNotificationSettings(settings);
             StatusLabel.Text = testAfterSave
-                ? NotificationService.TryLaunch("TajsToucher")
+                ? NotificationService.TryLaunch("TajsToucher", bypassCooldown: true)
                     ? "Settings saved and test notification launched."
                     : "Settings saved, but the notification helper could not be started."
                 : "Settings saved.";
@@ -95,7 +111,25 @@ public sealed partial class SettingsPage : Page
 
     private bool TryReadSettings(out NotificationSettings settings)
     {
-        var rawSettings = new NotificationSettings(TitleTextBox.Text, TextTextBox.Text, IconPathTextBox.Text);
+        if (!double.IsFinite(CooldownNumberBox.Value) || CooldownNumberBox.Value < 0 ||
+            CooldownNumberBox.Value > 300 || CooldownNumberBox.Value != Math.Truncate(CooldownNumberBox.Value))
+        {
+            settings = NotificationSettings.Defaults;
+            StatusLabel.Text = "Cooldown must be a whole number from 0 to 300 seconds.";
+            return false;
+        }
+
+        var rawSettings = new NotificationSettings(TitleTextBox.Text, TextTextBox.Text, IconPathTextBox.Text,
+            SoundToggle.IsOn, (int)CooldownNumberBox.Value)
+        {
+            NotifyOnSigning = SigningToggle.IsOn,
+            NotifyOnEncryption = EncryptionToggle.IsOn,
+            NotifyOnDecryption = DecryptionToggle.IsOn,
+            NotifyOnFailure = FailureToggle.IsOn,
+            RecordDiagnostics = DiagnosticsToggle.IsOn,
+            NotifyOnDevicePresence = DevicePresenceToggle.IsOn,
+            NotifyOnLowRetries = LowRetriesToggle.IsOn,
+        };
         if (string.IsNullOrWhiteSpace(rawSettings.Title))
         {
             settings = NotificationSettings.Defaults;

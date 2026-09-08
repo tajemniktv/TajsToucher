@@ -6,7 +6,7 @@ internal static class DetachedProcessLauncher
 {
     private const uint CreateNoWindow = 0x08000000;
 
-    public static bool TryLaunch(string executable, IReadOnlyList<string> arguments)
+    public static bool TryLaunch(string executable, IReadOnlyList<string> arguments, string helperMode)
     {
         var commandLine = new StringBuilder(WindowsArgumentQuoter.Quote(executable));
         foreach (var argument in arguments)
@@ -20,24 +20,29 @@ internal static class DetachedProcessLauncher
             Size = Marshal.SizeOf<StartupInfo>(),
         };
 
-        if (!CreateProcess(
-                executable,
-                commandLine,
-                IntPtr.Zero,
-                IntPtr.Zero,
-                bInheritHandles: false,
-                CreateNoWindow,
-                IntPtr.Zero,
-                null,
-                ref startupInfo,
-                out var processInformation))
+        var environment = Marshal.StringToHGlobalUni(HelperDispatch.CreateEnvironmentBlock(helperMode));
+        try
         {
-            return false;
-        }
+            if (!CreateProcess(
+                    executable,
+                    commandLine,
+                    IntPtr.Zero,
+                    IntPtr.Zero,
+                    bInheritHandles: false,
+                    CreateNoWindow | 0x400, // CREATE_UNICODE_ENVIRONMENT
+                    environment,
+                    null,
+                    ref startupInfo,
+                    out var processInformation))
+            {
+                return false;
+            }
 
-        CloseHandle(processInformation.ProcessHandle);
-        CloseHandle(processInformation.ThreadHandle);
-        return true;
+            CloseHandle(processInformation.ProcessHandle);
+            CloseHandle(processInformation.ThreadHandle);
+            return true;
+        }
+        finally { Marshal.FreeHGlobal(environment); }
     }
 
     [DllImport("kernel32.dll", CharSet = CharSet.Unicode, SetLastError = true)]

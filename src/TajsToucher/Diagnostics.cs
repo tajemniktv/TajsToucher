@@ -2,42 +2,43 @@ namespace TajsToucher;
 
 internal static class Diagnostics
 {
-    public static int Run()
+    public static int Run() => Run(Console.Out);
+
+    internal static string CaptureReport(Action<TextWriter>? writeReport = null)
+    {
+        using var output = new StringWriter();
+        try { (writeReport ?? (writer => Run(writer)))(output); }
+        catch (Exception exception) when (exception is IOException or InvalidOperationException or UnauthorizedAccessException or System.ComponentModel.Win32Exception)
+        {
+            output.WriteLine("Setup diagnostics could not complete. No configuration was changed.");
+            output.WriteLine(exception.Message);
+        }
+        return output.ToString();
+    }
+
+    private static int Run(TextWriter output)
     {
         var wrapperPath = Environment.ProcessPath is { Length: > 0 } processPath
             ? Path.GetFullPath(processPath)
             : "<unavailable>";
-        var store = new ConfigurationStore();
-        var state = store.Load();
-        var realGpg = ExecutableLocator.FindGpg(state?.RealGpgPath, wrapperPath);
-        var gitPath = ExecutableLocator.FindGit();
+        var status = AppStatus.Load();
 
-        Console.WriteLine("TajsToucher diagnostics");
-        Console.WriteLine($"Wrapper: {wrapperPath}");
-        Console.WriteLine($"Git: {(gitPath ?? "not found")}");
-        Console.WriteLine($"Real GPG: {(realGpg ?? "not found")}");
-        Console.WriteLine($"Saved installation state: {(state is null ? "no" : "yes")}");
+        output.WriteLine("TajsToucher diagnostics");
+        output.WriteLine($"Wrapper: {wrapperPath}");
+        output.WriteLine($"Real GPG: {(status.RealGpgPath ?? "not found")}");
+        output.WriteLine($"Saved installation state: {(status.IsInstalled ? "yes" : "no")}");
+        output.WriteLine($"Installed wrapper available: {(status.WrapperAvailable ? "yes" : "no")}");
+        output.WriteLine($"Global Git configuration readable: {(status.GitConfigurationReadable ? "yes" : "no")}");
+        output.WriteLine($"Global gpg.openpgp.program matches installation: {(status.GitConfigurationMatches ? "yes" : "no")}");
+        output.WriteLine($"Status: {status.Summary}");
 
-        if (gitPath is not null)
-        {
-            var git = new GitConfigService();
-            if (git.TryGetGlobalPrograms(out var programs))
-            {
-                var configured = programs.Count == 0
-                    ? "not set"
-                    : programs.Count == 1 && ExecutableLocator.AreSamePath(programs[0], wrapperPath)
-                        ? "TajsToucher"
-                        : "set to another program";
-                Console.WriteLine($"Global gpg.openpgp.program: {configured}");
-            }
-            else
-            {
-                Console.WriteLine("Global gpg.openpgp.program: unreadable");
-            }
-        }
-
-        Console.WriteLine("Signing detection: ready");
-        Console.WriteLine("Notification: fail-open");
-        return realGpg is null || gitPath is null ? 1 : 0;
+        output.WriteLine("Signing detection: ready");
+        output.WriteLine("Notification: fail-open");
+        var settings = new ConfigurationStore().LoadNotificationSettings();
+        output.WriteLine($"Notification rules: signing={settings.NotifyOnSigning}, encryption={settings.NotifyOnEncryption}, decryption={settings.NotifyOnDecryption}, failure alerts={settings.NotifyOnFailure}");
+        output.WriteLine($"Operation diagnostics: {(settings.RecordDiagnostics ? "enabled" : "disabled")}");
+        output.WriteLine($"Diagnostic folder: {DiagnosticEventSink.DefaultDirectory}");
+        output.WriteLine("Scope: explicit OpenPGP operations routed through this executable; not global hardware-key monitoring.");
+        return status.IsReady ? 0 : 1;
     }
 }

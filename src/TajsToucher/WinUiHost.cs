@@ -9,6 +9,7 @@ public enum AppPage
     Home,
     Settings,
     EnabledFor,
+    Devices,
 }
 
 internal static class AppShellLauncher

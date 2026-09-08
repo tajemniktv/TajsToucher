@@ -2,7 +2,7 @@
 
 TajsToucher is a small Windows helper that makes hardware-key signing less
 invisible. Git configures it as its OpenPGP program; TajsToucher shows a
-notification for signing operations and then forwards the operation to the
+notification for signing operations by default and then forwards the operation to the
 real `gpg.exe`.
 
 The problem it solves is painfully mundane: a YubiKey can be waiting for touch
@@ -14,7 +14,7 @@ Git / Codex
     |
     v
 TajsToucher.exe
-    |-- native notification (signing only, fail-open)
+    |-- native notification (selected operations, fail-open)
     `-- real gpg.exe
             |
             v
@@ -50,6 +50,22 @@ dotnet publish src\TajsToucher\TajsToucher.csproj `
   -o artifacts\publish\win-x64
 ```
 
+For a single self-contained Windows x64 executable:
+
+```powershell
+dotnet publish src\TajsToucher\TajsToucher.csproj -c Release -p:PublishProfile=SingleFile
+```
+
+The permanent daily-use output is `artifacts\publish\single-file\TajsToucher.exe`.
+Future updates are published to this same location, not task-specific folders.
+Exit the tray app and finish any signing operation before replacing the executable.
+Install for Git from this path once; ordinary updates do not require reinstalling.
+It bundles
+the .NET and Windows App SDK payloads and extracts them into the .NET runtime's
+per-user cache on first launch. Allow extra disk space and startup time for that
+first launch. Move the executable to its final location before running `install`.
+The ordinary folder-based publish remains supported.
+
 Run the published executable from its final location:
 
 ```powershell
@@ -77,15 +93,107 @@ notification title, notification text, and an optional `.ico` file. Use
 text does not contain that token, the repository name is appended automatically
 when available.
 
+Settings also offer a Windows notification sound toggle and a cooldown of
+0–300 whole seconds. Sound remains enabled by default; Windows controls its
+actual audibility. Cooldown defaults to 0 (show every request). When enabled,
+it suppresses repeated operation notices across enabled operations and repositories for this user.
+Enabled failure alerts and test notifications bypass cooldown without consuming it. Cooldown state stores
+only a timestamp; it does not record repository names or signing payloads.
+
+### Broader OpenPGP notices and diagnostic events
+
+Settings now has per-operation notification rules. Signing remains on by
+default; encryption (including symmetric encryption), decryption, and failure
+alerts are opt-in. Sign-and-encrypt requests use either selected rule. Use
+`{Operation}` in title/text so one custom template can describe each operation.
+The old stock Git-only message is upgraded to an operation-aware default;
+other custom text is preserved. Test notifications still preview signing.
+
+These rules observe only explicit commands **routed through TajsToucher**:
+
+```powershell
+TajsToucher.exe --encrypt --recipient RECIPIENT --output message.gpg message.txt
+TajsToucher.exe --decrypt --output message.txt message.gpg
+```
+
+GnuPG still owns all cryptographic work, prompts, and exit codes. A request
+notification does not mean hardware touch is definitely required. Direct
+`gpg.exe` calls, operations inferred from input or option files, verification,
+and key/PIN management are not monitored. Failure alerts use only the exit
+code, never GPG's error text, and bypass cooldown when enabled for that operation.
+
+Optional **Record operation diagnostics locally** writes metadata to
+`%LOCALAPPDATA%\TajsToucher\Diagnostics\events.log` and
+`events.previous.log` (64 KiB each). Fields are UTC timestamp, correlation ID,
+source, operation, phase, exit code, and wrapper elapsed milliseconds. Logs
+never include arguments, repositories, key IDs, filenames, stdout/stderr, or
+cryptographic payloads. Detached helpers can write out of order: correlate by
+ID and use the event timestamp rather than line order. Logs are best-effort,
+not an audit trail; helper failures or contention can lose entries. Disabling
+recording retains existing files. **Enabled for** shows the recording state
+and opens the folder; you can remove the two log files when no longer needed.
+
+### Optional YubiKey diagnostics
+
+Open **Devices** (or run `TajsToucher.exe devices`), then click **Discover /
+refresh keys**. The pinned Yubico SDK runs in a separate desktop-only assembly.
+Discovery stays active until the tray app exits; it is never started by a GPG
+invocation. Select a key explicitly when several are connected. Inventory shows
+firmware and available/enabled USB/NFC applications, not credential usability.
+Serial-less keys have ephemeral, per-handle identities and are not merged by
+similar firmware. No serial numbers are shown or logged.
+
+**Read application status** opens short-lived sessions, only when clicked:
+
+- PIV metadata (firmware 5.3+): algorithms, configured PIN/touch policies and
+  PIN/PUK retries. Unknown retry counts remain unknown; no PIN is attempted.
+- OATH: password protection only. No unlocking, account labels or code generation.
+- FIDO2: supported versions/options and retry information where Windows permits
+  direct access. Permission denial, removal, busy access and timeouts are not
+  reported as zero retries or proof that no key exists.
+
+**Touch / identify test** uses the SDK's credential-free authenticator selection
+on supported firmware (5.5.1+). It provides its own correlated touch prompt and
+Cancel action. Completion comes from the command result, never a cleanup callback.
+The test creates no credential or signature and does not observe other apps.
+Windows may deny direct FIDO access; TajsToucher never elevates itself.
+
+Settings has opt-in arrival/removal and low-retry notices. These use the resident
+native tray; repeated presence noise and low-retry warnings are coalesced.
+Optional diagnostics reuse the same bounded files, with a `YubiKeySDK` source,
+timestamp, correlation ID, signal kind and outcome only. The SDK's own logging
+is disabled. A bounded queue keeps notification/disk work off SDK callbacks.
+
+`TajsToucher.exe diagnose-devices` explicitly probes native SDK loading and
+inventory, then stops listeners. It performs no application reads or touch test.
+SDK licenses accompany folder builds in `licenses/` and are included in the
+single-file extraction payload. Missing SDK files do not prevent GPG forwarding.
+
+Hardware touch, reconnect/suspend and coexistence with GnuPG/OpenSSH/Authenticator
+still require manual acceptance on physical keys. No system-wide touch/PIN,
+browser FIDO, or other-app PIV/OATH monitoring is implemented. OpenSSH integration
+remains gated on a separately validated askpass lifecycle.
+
 Closing the app window hides TajsToucher to the system tray instead of stopping
 it. Double-click the tray icon, or use its menu, to reopen the dashboard,
 Settings, or Enabled for. **Exit TajsToucher** in that menu terminates the app.
+The dashboard follows Windows' native light/dark/high-contrast theme. Home's
+embedded settings and integration information share its outer scroll surface;
+the standalone pages keep their own scrolling.
 
 `settings` opens the same app directly on the Settings screen. `app` opens the
 Home screen explicitly.
 
+`diagnose` returns exit code 0 only when saved installation state exists, the
+installed wrapper and real GPG are available, and Git's readable global
+`gpg.openpgp.program` has exactly one value matching the installed wrapper.
+Otherwise it returns 1 and reports which setup condition needs attention.
+This is a global OpenPGP configuration check, not proof of signing: repository
+configuration and `gpg.format` (for example SSH signing) can override it.
+It does not change settings, request a signature, or test hardware-key access.
+
 When Git invokes the executable with GPG arguments, it acts as a transparent
-GPG proxy. The `install`, `uninstall`, `diagnose`, `app`, `settings`, `proxy`,
+GPG proxy. The `install`, `uninstall`, `diagnose`, `diagnose-devices`, `devices`, `app`, `settings`, `proxy`,
 `help`, and `version` subcommands are reserved only when supplied as the single
 bare argument, so GPG options such as `--help` and `--version` are forwarded
 unchanged. `proxy` is the explicit no-argument proxy mode.
@@ -102,6 +210,8 @@ The wrapper:
 
 - detects `--sign`, `--detach-sign`, `--clearsign`, and Git's `-bsau`-style
   short option clusters;
+- optionally observes explicit encryption/decryption requests and records
+  fixed metadata-only request/outcome events;
 - does not notify for `--verify` or `--verify-files` operations;
 - forwards stdin, stdout, and stderr as raw byte streams and returns GPG's
   exit code;

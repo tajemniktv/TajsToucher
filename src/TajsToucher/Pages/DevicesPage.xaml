@@ -1,0 +1,8 @@
+<Page
+    x:Class="TajsToucher.Pages.DevicesPage"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    Background="Transparent">
+    <!-- The compiled page registers its activation factory for Frame.Navigate.
+         The existing read-only device UI is composed in code-behind. -->
+</Page>

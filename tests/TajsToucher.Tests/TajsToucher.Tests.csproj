@@ -4,10 +4,14 @@
     <EnableWindowsTargeting>true</EnableWindowsTargeting>
     <IsPackable>false</IsPackable>
     <IsTestProject>true</IsTestProject>
+    <OutputType>Exe</OutputType>
+    <StartupObject>TajsToucher.Tests.ProxyChild</StartupObject>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
   </PropertyGroup>
   <ItemGroup>
+    <EmbeddedResource Include="../../src/TajsToucher/MainWindow.xaml" LogicalName="MainWindow.xaml" />
+    <EmbeddedResource Include="../../src/TajsToucher/Pages/*.xaml" LogicalName="%(Filename).xaml" />
     <ProjectReference Include="../../src/TajsToucher/TajsToucher.csproj" />
     <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.14.1" />
     <PackageReference Include="MSTest.TestAdapter" Version="3.10.4" />

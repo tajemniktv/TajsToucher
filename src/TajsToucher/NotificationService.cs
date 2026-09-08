@@ -7,7 +7,7 @@ internal static class NotificationService
 {
     private const int BalloonDurationMilliseconds = 10_000;
 
-    public static bool TryLaunch(string? repositoryName)
+    public static bool TryLaunch(string? repositoryName, bool bypassCooldown = false)
     {
         try
         {
@@ -17,7 +17,7 @@ internal static class NotificationService
                 return false;
             }
 
-            var arguments = new List<string> { "--notify" };
+            var arguments = new List<string> { bypassCooldown ? "--notify-test" : "--notify" };
             if (!string.IsNullOrWhiteSpace(repositoryName))
             {
                 arguments.Add(repositoryName);
@@ -25,7 +25,7 @@ internal static class NotificationService
 
             // Use bInheritHandles=false so a ten-second notification cannot keep Git's pipes alive
             // after GPG exits. Notifications are deliberately detached and fail-open.
-            return DetachedProcessLauncher.TryLaunch(executable, arguments);
+            return DetachedProcessLauncher.TryLaunch(executable, arguments, HelperDispatch.Notification);
         }
         catch
         {
@@ -33,21 +33,44 @@ internal static class NotificationService
         }
     }
 
-    public static int Show(string? repositoryName)
+    public static int Show(string? repositoryName, bool bypassCooldown = false)
     {
         var settings = new ConfigurationStore().LoadNotificationSettings();
+        return ShowEvent(new OperationEvent(Guid.NewGuid(), DateTimeOffset.UtcNow,
+            OpenPgpOperation.Signing, OperationPhase.Requested), settings, repositoryName, bypassCooldown);
+    }
+
+    internal static int ShowEvent(OperationEvent operationEvent, NotificationSettings settings, string? repositoryName,
+        bool bypassCooldown = false)
+    {
+        if (!operationEvent.IsValid) return 2;
+        // An explicitly enabled failure alert should not be hidden by its own start prompt.
+        bypassCooldown |= operationEvent.Phase == OperationPhase.Failed;
         using var customIcon = NotificationIconLoader.TryLoad(settings.IconPath);
+        var presentation = FormatEvent(operationEvent, settings, repositoryName);
         using var host = new NativeNotificationHost(
-            RenderTitle(settings.Title, repositoryName),
-            NotificationTemplate.Render(settings.Text, repositoryName),
-            customIcon);
-        host.Show();
+            presentation.Title,
+            presentation.Message,
+            customIcon,
+            settings.PlaySound);
+        if (!NotificationCooldown.TryShow(bypassCooldown ? 0 : settings.CooldownSeconds, host.Show)) return 0;
         host.Run();
         return 0;
     }
 
-    private static string RenderTitle(string title, string? repositoryName) =>
-        title.Replace("{Repository}", repositoryName ?? "unknown", StringComparison.OrdinalIgnoreCase);
+    internal static (string Title, string Message) FormatEvent(OperationEvent operationEvent, NotificationSettings settings, string? repositoryName)
+    {
+        if (operationEvent.Phase == OperationPhase.Failed)
+        {
+            return ("OpenPGP operation failed",
+                $"{OperationEvent.Describe(operationEvent.Operation)} exited with code {operationEvent.ExitCode}. Check the calling application's error output.");
+        }
+
+        var title = settings.Title == NotificationSettings.DefaultTitle && operationEvent.Operation != OpenPgpOperation.Signing
+            ? "OpenPGP operation requested"
+            : NotificationTemplate.RenderTitle(settings.Title, repositoryName, operationEvent.Operation);
+        return (title, NotificationTemplate.Render(settings.Text, repositoryName, operationEvent.Operation));
+    }
 
     private sealed class NativeNotificationHost : IDisposable
     {
@@ -65,11 +88,13 @@ internal static class NotificationService
         private const uint NifInfo = 0x00000010;
         private const uint NifShowTip = 0x00000080;
         private const uint NiifInfo = 1;
+        private const uint NiifNoSound = 0x10;
         private static readonly nint IdiApplication = new(32512);
 
         private readonly string title;
         private readonly string message;
         private readonly Icon? customIcon;
+        private readonly bool playSound;
         private readonly WindowProc windowProc;
         private readonly string windowClassName = $"TajsToucher.Notification.{Environment.ProcessId}.{Guid.NewGuid():N}";
         private nint windowHandle;
@@ -77,11 +102,12 @@ internal static class NotificationService
         private nint fallbackIconHandle;
         private bool iconAdded;
 
-        public NativeNotificationHost(string title, string message, Icon? customIcon)
+        public NativeNotificationHost(string title, string message, Icon? customIcon, bool playSound)
         {
             this.title = title;
             this.message = message;
             this.customIcon = customIcon;
+            this.playSound = playSound;
             windowProc = HandleWindowMessage;
         }
 
@@ -135,9 +161,11 @@ internal static class NotificationService
             data.Icon = customIcon?.Handle ?? fallbackIconHandle;
             data.InfoTitle = Truncate(title, 63);
             data.Info = Truncate(message, 255);
-            data.InfoFlags = NiifInfo;
-            _ = Shell_NotifyIconW(NimModify, ref data);
-            _ = SetTimer(windowHandle, TimerId, BalloonDurationMilliseconds, 0);
+            data.InfoFlags = NiifInfo | (playSound ? 0 : NiifNoSound);
+            if (!Shell_NotifyIconW(NimModify, ref data))
+                throw new Win32Exception(Marshal.GetLastWin32Error(), "Could not display the notification.");
+            if (SetTimer(windowHandle, TimerId, BalloonDurationMilliseconds, 0) == 0)
+                throw new Win32Exception(Marshal.GetLastWin32Error(), "Could not start the notification timer.");
         }
 
         public void Run()

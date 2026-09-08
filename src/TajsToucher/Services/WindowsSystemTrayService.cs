@@ -94,6 +94,16 @@ internal sealed class WindowsSystemTrayService : IDisposable
         _ = Shell_NotifyIconW(NimSetVersion, ref version);
     }
 
+    public void ShowDeviceNotice(string message, bool playSound)
+    {
+        if (disposed || windowHandle == 0) return;
+        var data = CreateNotifyIconData(0x10); // NIF_INFO
+        data.InfoTitle = "TajsToucher · YubiKey SDK";
+        data.Info = message.Length > 255 ? message[..255] : message;
+        data.InfoFlags = 0x1u | (playSound ? 0 : 0x10u); // NIIF_INFO / NIIF_NOSOUND
+        _ = Shell_NotifyIconW(NimModify, ref data);
+    }
+
     public void Dispose()
     {
         if (disposed)
@@ -138,25 +148,35 @@ internal sealed class WindowsSystemTrayService : IDisposable
 
         if (message == WmCommand)
         {
-            switch (unchecked((uint)wParam.ToUInt64()) & 0xFFFFu)
-            {
-                case CommandOpen:
-                    OpenDashboardRequested?.Invoke(this, EventArgs.Empty);
-                    break;
-                case CommandSettings:
-                    OpenSettingsRequested?.Invoke(this, EventArgs.Empty);
-                    break;
-                case CommandEnabledFor:
-                    OpenEnabledForRequested?.Invoke(this, EventArgs.Empty);
-                    break;
-                case CommandExit:
-                    ExitRequested?.Invoke(this, EventArgs.Empty);
-                    break;
-            }
+            ProcessMenuCommand(unchecked((uint)wParam.ToUInt64()) & 0xFFFFu);
             return 0;
         }
 
         return DefWindowProcW(window, message, wParam, lParam);
+    }
+
+    internal void ProcessMenuCommand(uint command)
+    {
+        switch (command)
+        {
+            case CommandOpen:
+                OpenDashboardRequested?.Invoke(this, EventArgs.Empty);
+                break;
+            case CommandSettings:
+                OpenSettingsRequested?.Invoke(this, EventArgs.Empty);
+                break;
+            case CommandEnabledFor:
+                OpenEnabledForRequested?.Invoke(this, EventArgs.Empty);
+                break;
+            case CommandExit:
+                ExitRequested?.Invoke(this, EventArgs.Empty);
+                break;
+        }
+    }
+
+    internal static void DispatchMenuSelection(uint selected, Action<uint> postCommand)
+    {
+        if (selected != 0) postCommand(selected);
     }
 
     private void ReAddTrayIcon()
@@ -194,7 +214,10 @@ internal sealed class WindowsSystemTrayService : IDisposable
             _ = AppendMenuW(menu, MfSeparator, 0, null);
             _ = AppendMenuW(menu, MfString, CommandExit, "Exit TajsToucher");
             _ = SetForegroundWindow(windowHandle);
-            _ = TrackPopupMenu(menu, TpmRightButton | TpmReturnCmd | TpmNoNotify, point.X, point.Y, 0, windowHandle, 0);
+            var selected = TrackPopupMenu(menu, TpmRightButton | TpmReturnCmd | TpmNoNotify, point.X, point.Y, 0, windowHandle, 0);
+            // TPM_RETURNCMD / TPM_NONOTIFY suppress WM_COMMAND. Queue the returned
+            // command ourselves, after the native popup loop has unwound.
+            DispatchMenuSelection(selected, command => PostMessageW(windowHandle, WmCommand, command, 0));
             _ = PostMessageW(windowHandle, WmNull, 0, 0);
         }
         finally

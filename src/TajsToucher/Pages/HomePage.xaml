@@ -5,17 +5,17 @@
     xmlns:local="using:TajsToucher.Pages"
     Background="Transparent">
     <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
-        <StackPanel Padding="36,28,36,48" Spacing="14">
+        <StackPanel Padding="32,28,32,48" Spacing="16" MaxWidth="1200" HorizontalAlignment="Stretch">
             <TextBlock Text="Status, personalization, and connected capabilities in one place."
-                       Foreground="{StaticResource MutedBrush}"
+                       Foreground="{ThemeResource TextFillColorSecondaryBrush}"
                        FontSize="13" />
             <TextBlock Text="Your signing setup at a glance"
-                       Foreground="{StaticResource InkBrush}"
+                       Foreground="{ThemeResource TextFillColorPrimaryBrush}"
                        FontSize="26"
                        FontWeight="SemiBold"
                        Margin="0,0,0,2" />
 
-            <Border Background="{StaticResource CardBackgroundBrush}"
+            <Border Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
                     Padding="18"
                     CornerRadius="2">
                 <Grid ColumnDefinitions="42,*,Auto">
@@ -27,12 +27,12 @@
                     <StackPanel Grid.Column="1" Margin="10,0,16,0" Spacing="4">
                         <TextBlock x:Name="StatusTitle"
                                    Text="Needs setup"
-                                   Foreground="{StaticResource InkBrush}"
+                                   Foreground="{ThemeResource TextFillColorPrimaryBrush}"
                                    FontSize="18"
                                    FontWeight="SemiBold" />
                         <TextBlock x:Name="StatusDescription"
                                    Text="Use Install for Git below to connect Git, then keep working from this dashboard."
-                                   Foreground="{StaticResource MutedBrush}"
+                                   Foreground="{ThemeResource TextFillColorSecondaryBrush}"
                                    TextWrapping="Wrap" />
                     </StackPanel>
                     <Button Grid.Column="2"
@@ -43,54 +43,48 @@
             </Border>
 
             <Grid ColumnDefinitions="*,*,*" ColumnSpacing="8">
-                <Border Background="{StaticResource CardBackgroundBrush}" Padding="16,12,16,10" CornerRadius="2">
+                <Border Background="{ThemeResource CardBackgroundFillColorDefaultBrush}" Padding="16,12,16,10" CornerRadius="2">
                     <StackPanel Spacing="4">
-                        <TextBlock Text="Git / OpenPGP signing" Foreground="{StaticResource MutedBrush}" />
+                        <TextBlock Text="Git / OpenPGP signing" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
                         <TextBlock x:Name="SigningValue" Text="Not enabled" FontSize="16" FontWeight="SemiBold" />
-                        <TextBlock x:Name="SigningDetail" Text="Git is not connected yet" Foreground="{StaticResource MutedBrush}" />
+                        <TextBlock x:Name="SigningDetail" Text="Git is not connected yet" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
                     </StackPanel>
                 </Border>
-                <Border Grid.Column="1" Background="{StaticResource CardBackgroundBrush}" Padding="16,12,16,10" CornerRadius="2">
+                <Border Grid.Column="1" Background="{ThemeResource CardBackgroundFillColorDefaultBrush}" Padding="16,12,16,10" CornerRadius="2">
                     <StackPanel Spacing="4">
-                        <TextBlock Text="Notifications" Foreground="{StaticResource MutedBrush}" />
-                        <TextBlock Text="Ready" Foreground="{StaticResource SuccessBrush}" FontSize="16" FontWeight="SemiBold" />
-                        <TextBlock Text="Personalized locally" Foreground="{StaticResource MutedBrush}" />
+                        <TextBlock Text="Notifications" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                        <TextBlock Text="Ready" Foreground="{ThemeResource SystemFillColorSuccessBrush}" FontSize="16" FontWeight="SemiBold" />
+                        <TextBlock Text="Personalized locally" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
                     </StackPanel>
                 </Border>
-                <Border Grid.Column="2" Background="{StaticResource CardBackgroundBrush}" Padding="16,12,16,10" CornerRadius="2">
+                <Border Grid.Column="2" Background="{ThemeResource CardBackgroundFillColorDefaultBrush}" Padding="16,12,16,10" CornerRadius="2">
                     <StackPanel Spacing="4">
-                        <TextBlock Text="Real GnuPG" Foreground="{StaticResource MutedBrush}" />
+                        <TextBlock Text="Real GnuPG" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
                         <TextBlock x:Name="GpgValue" Text="Unavailable" FontSize="16" FontWeight="SemiBold" />
-                        <TextBlock Text="The underlying signer" Foreground="{StaticResource MutedBrush}" />
+                        <TextBlock Text="The underlying signer" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
                     </StackPanel>
                 </Border>
             </Grid>
 
-            <StackPanel Orientation="Horizontal" Spacing="8" Margin="0,2,0,0">
-                <Button x:Name="InstallButton" Content="Install for Git" Click="Install_Click" />
-                <Button x:Name="UninstallButton" Content="Uninstall" Click="Uninstall_Click" Visibility="Collapsed" />
-                <Button Content="Test notification" Click="TestNotification_Click" />
-                <Button Content="Open Settings page" Click="OpenSettings_Click" />
-                <Button Content="Open Enabled for page" Click="OpenEnabledFor_Click" />
+            <StackPanel Spacing="8" Margin="0,2,0,0">
+                <StackPanel Orientation="Horizontal" Spacing="8">
+                    <Button x:Name="InstallButton" Content="Install for Git" Click="Install_Click" />
+                    <Button x:Name="UninstallButton" Content="Uninstall" Click="Uninstall_Click" Visibility="Collapsed" />
+                    <Button x:Name="DiagnoseButton" Content="Diagnose setup" Click="Diagnose_Click" />
+                    <Button Content="Test notification" Click="TestNotification_Click" />
+                </StackPanel>
+                <StackPanel Orientation="Horizontal" Spacing="8">
+                    <Button Content="Open Settings page" Click="OpenSettings_Click" />
+                    <Button Content="Open Enabled for page" Click="OpenEnabledFor_Click" />
+                </StackPanel>
                 <TextBlock x:Name="ActionStatus"
-                           Foreground="{StaticResource MutedBrush}"
+                           Foreground="{ThemeResource TextFillColorSecondaryBrush}"
                            VerticalAlignment="Center"
                            TextWrapping="Wrap" />
             </StackPanel>
 
-            <TextBlock Text="Notification personalization"
-                       Foreground="{StaticResource InkBrush}"
-                       FontSize="16"
-                       FontWeight="SemiBold"
-                       Margin="0,8,0,0" />
-            <local:SettingsPage x:Name="InlineSettings" Height="520" />
-
-            <TextBlock Text="Enabled for"
-                       Foreground="{StaticResource InkBrush}"
-                       FontSize="16"
-                       FontWeight="SemiBold"
-                       Margin="0,8,0,0" />
-            <local:EnabledForPage x:Name="InlineEnabledFor" Height="410" />
+            <local:SettingsPage x:Name="InlineSettings" Margin="0,20,0,0" />
+            <local:EnabledForPage x:Name="InlineEnabledFor" Margin="0,20,0,0" />
         </StackPanel>
     </ScrollViewer>
 </Page>

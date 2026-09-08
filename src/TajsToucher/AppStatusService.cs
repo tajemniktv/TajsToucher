@@ -6,7 +6,27 @@ internal sealed record AppStatus(
     bool RealGpgAvailable,
     string? RealGpgPath)
 {
-    public bool IsReady => IsInstalled && GitConfigurationMatches && RealGpgAvailable;
+    public bool WrapperAvailable { get; init; }
+    public bool GitConfigurationReadable { get; init; }
+    public bool StatusReadFailed { get; init; }
+    public bool IsReady => !StatusReadFailed && IsInstalled && GitConfigurationReadable && GitConfigurationMatches && WrapperAvailable && RealGpgAvailable;
+    public string SigningValue => StatusReadFailed || !GitConfigurationReadable ? "Unknown" : IsReady ? "Enabled" : "Not enabled";
+    public string SigningDetail => StatusReadFailed ? "Setup status could not be read; run diagnose before changing configuration."
+        : !GitConfigurationReadable ? "Global Git configuration could not be read; run diagnose before changing configuration."
+        : GitConfigurationMatches ? "Global Git setting points to TajsToucher" : "Global Git setting does not match";
+    public string GpgValue => StatusReadFailed ? "Unknown" : RealGpgAvailable ? "Available" : "Unavailable";
+    public bool CanInstall => !StatusReadFailed && !IsReady;
+    public bool CanUninstall => !StatusReadFailed && IsInstalled && GitConfigurationMatches;
+
+    public string Summary => StatusReadFailed
+        ? "Setup status could not be read. Run diagnose for details."
+        : !GitConfigurationReadable
+        ? "Git's global configuration could not be read. Check that Git is installed and run diagnose."
+        : !IsInstalled ? "No saved installation. Use Install for Git to connect the wrapper."
+        : !WrapperAvailable ? "The installed wrapper is missing. Install again from the executable's final location."
+        : !GitConfigurationMatches ? "Git's global program setting differs or has multiple values. Review it before reinstalling."
+        : !RealGpgAvailable ? "Real GnuPG was not found. Install GnuPG, then retry setup."
+        : "The global OpenPGP wrapper is ready. Repository settings and gpg.format can override it.";
 
     public static AppStatus Load()
     {
@@ -16,14 +36,11 @@ internal sealed record AppStatus(
         var wrapperPath = installation?.WrapperPath ?? processPath;
 
         var gitConfigurationMatches = false;
-        if (installation is not null)
+        var gitConfig = new GitConfigService();
+        var readable = gitConfig.TryGetGlobalPrograms(out var programs);
+        if (installation is not null && readable)
         {
-            var gitConfig = new GitConfigService();
-            if (gitConfig.TryGetGlobalPrograms(out var programs))
-            {
-                gitConfigurationMatches = programs.Any(program =>
-                    ExecutableLocator.AreSamePath(program, installation.WrapperPath));
-            }
+            gitConfigurationMatches = GitConfigService.IsWrapperConfiguration(programs, installation.WrapperPath);
         }
 
         var realGpgPath = ExecutableLocator.FindGpg(installation?.RealGpgPath, wrapperPath);
@@ -31,6 +48,10 @@ internal sealed record AppStatus(
             installation is not null,
             gitConfigurationMatches,
             realGpgPath is not null,
-            realGpgPath);
+            realGpgPath)
+        {
+            WrapperAvailable = installation is not null && File.Exists(installation.WrapperPath),
+            GitConfigurationReadable = readable,
+        };
     }
 }
