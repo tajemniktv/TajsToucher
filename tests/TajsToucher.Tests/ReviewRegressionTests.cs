@@ -49,6 +49,11 @@ public sealed class ReviewRegressionTests
         var status = new AppStatus(false, false, false, null) { StatusReadFailed = true };
         StringAssert.Contains(status.Summary, "Setup status could not be read");
         Assert.IsFalse(status.IsReady);
+        Assert.AreEqual("Unknown", status.SigningValue);
+        Assert.AreEqual("Unknown", status.GpgValue);
+        StringAssert.Contains(status.SigningDetail, "could not be read");
+        Assert.IsFalse(status.CanInstall);
+        Assert.IsFalse(status.CanUninstall);
     }
 
     [TestMethod]

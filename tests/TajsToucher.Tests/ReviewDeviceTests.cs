@@ -11,6 +11,77 @@ namespace TajsToucher.Tests;
 public sealed class ReviewDeviceTests
 {
     [TestMethod]
+    [DataRow(false)]
+    [DataRow(true)]
+    public async Task ReconnectWaitsForOldSessionEvenWhenItIgnoresCancellation(bool observeAbsentInventory)
+    {
+        using var release = new ManualResetEventSlim();
+        var entered = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var oldKey = Key(7);
+        var newKey = Key(7);
+        var source = new Source { Keys = [oldKey] };
+        var calls = 0;
+        var backend = new Operations { OnIdentify = (key, _, _) =>
+        {
+            if (Interlocked.Increment(ref calls) == 1)
+            {
+                Assert.AreSame(oldKey, key);
+                entered.TrySetResult();
+                release.Wait(); // Simulates a synchronous SDK call ignoring cancellation.
+            }
+            else Assert.AreSame(newKey, key);
+            return DeviceOutcome.Ready;
+        } };
+        await using var service = new YubiKeyService(source, backend);
+        var oldId = (await service.RefreshInventoryAsync()).Keys.Single().Id;
+        var first = service.IdentifyAsync(oldId, CancellationToken.None);
+        try
+        {
+            await entered.Task.WaitAsync(TimeSpan.FromSeconds(3));
+            source.Announce(oldKey, false);
+            if (observeAbsentInventory)
+            {
+                source.Keys = [];
+                Assert.AreEqual(0, (await service.RefreshInventoryAsync()).Keys.Count);
+            }
+            source.Keys = [newKey];
+            var newId = (await service.RefreshInventoryAsync()).Keys.Single().Id;
+            var second = service.IdentifyAsync(newId, CancellationToken.None);
+            await Task.WhenAny(second, Task.Delay(200));
+            Assert.IsFalse(second.IsCompleted, "Reconnected key overlapped its retiring SDK session.");
+            Assert.AreEqual(1, Volatile.Read(ref calls));
+            release.Set();
+            await first.WaitAsync(TimeSpan.FromSeconds(2));
+            Assert.AreEqual(DeviceOutcome.Ready, await second.WaitAsync(TimeSpan.FromSeconds(2)));
+        }
+        finally { release.Set(); }
+    }
+
+    [TestMethod]
+    public async Task CancellationInvalidatesQueuedTouchRequestsAndOrdersSdkCancellation()
+    {
+        using var cancellation = new CancellationTokenSource();
+        using var lifetime = new TouchRequestLifetime(cancellation.Token);
+        using var release = new ManualResetEventSlim();
+        var entered = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var requested = 0;
+        var cancelled = 0;
+        var first = Task.Run(() => lifetime.Request(null, () => { entered.TrySetResult(); release.Wait(); }));
+        try
+        {
+            await entered.Task.WaitAsync(TimeSpan.FromSeconds(2));
+            lifetime.Request(() => Interlocked.Increment(ref cancelled), () => Interlocked.Increment(ref requested));
+            cancellation.Cancel();
+            Assert.AreEqual(0, Volatile.Read(ref cancelled), "Cancellation must not overtake an executing request callback.");
+            release.Set();
+            await first.WaitAsync(TimeSpan.FromSeconds(2));
+            Assert.AreEqual(0, requested, "Queued request was stale after cancellation.");
+            Assert.AreEqual(1, cancelled);
+        }
+        finally { release.Set(); }
+    }
+
+    [TestMethod]
     public async Task QueuedIdentifyCancelsWithoutReleasingAnotherOperationAndOtherKeysRemainUsable()
     {
         using var release = new ManualResetEventSlim();
@@ -70,7 +141,13 @@ public sealed class ReviewDeviceTests
         Assert.AreEqual(25, results.Count(result => result.Detail.StartsWith("Empty slot")));
         Assert.AreEqual(2, results.Count(result => result.RetriesRemaining == 3));
         var missing = SdkKeyOperations.ReadPivSlots(slot => new GetMetadataResponse(new ResponseApdu(new byte[] { 0x6A, 0x88 }), slot), CancellationToken.None);
-        Assert.AreEqual(DeviceOutcome.Failed, missing[0].Outcome);
+        foreach (var status in missing.Take(2))
+        {
+            Assert.AreEqual(DeviceOutcome.Unavailable, status.Outcome);
+            Assert.IsNull(status.RetriesRemaining);
+            StringAssert.Contains(status.Detail, "retry count is unknown");
+            Assert.IsFalse(status.Detail.Contains("release the key"));
+        }
     }
 
     [TestMethod]
@@ -89,6 +166,8 @@ public sealed class ReviewDeviceTests
         Assert.IsTrue(SdkKeyOperations.Supports(Transport.UsbSmartCard | Transport.NfcSmartCard, YubiKeyCapabilities.Piv, YubiKeyCapabilities.Oath, YubiKeyCapabilities.Piv));
         Assert.IsTrue(SdkKeyOperations.Supports(Transport.UsbSmartCard | Transport.NfcSmartCard, YubiKeyCapabilities.Piv, YubiKeyCapabilities.Oath, YubiKeyCapabilities.Oath));
         Assert.IsFalse(SdkKeyOperations.Supports(Transport.UsbSmartCard, YubiKeyCapabilities.Piv, YubiKeyCapabilities.Oath, YubiKeyCapabilities.Oath));
+        Assert.IsTrue(SdkKeyOperations.Supports(Transport.NfcSmartCard, YubiKeyCapabilities.Piv, YubiKeyCapabilities.Oath, YubiKeyCapabilities.Oath));
+        Assert.IsFalse(SdkKeyOperations.Supports(Transport.NfcSmartCard, YubiKeyCapabilities.Piv, YubiKeyCapabilities.Oath, YubiKeyCapabilities.Piv));
         Assert.IsFalse(SdkKeyOperations.Supports(Transport.None, YubiKeyCapabilities.Piv, YubiKeyCapabilities.Oath, YubiKeyCapabilities.Piv));
     }
 

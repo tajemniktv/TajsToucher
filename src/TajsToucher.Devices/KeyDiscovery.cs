@@ -99,6 +99,9 @@ internal sealed class SdkDiscoverySource : IKeyDiscovery
                 listener.Arrived += Arrived;
                 listener.Removed += Removed;
             }
+            // SDK 1.17.3 returns the listener cache's object references, including
+            // serial-less keys. Do not replace these with device-info fingerprints:
+            // two identical anonymous keys must remain distinct.
             return YubiKeyDevice.FindAll().ToArray();
         }
     }

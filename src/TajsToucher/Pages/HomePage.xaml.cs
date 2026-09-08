@@ -30,13 +30,13 @@ public sealed partial class HomePage : Page
         StatusDot.Foreground = status.IsReady ? (Microsoft.UI.Xaml.Media.Brush)Application.Current.Resources["SuccessBrush"] : (Microsoft.UI.Xaml.Media.Brush)Application.Current.Resources["WarningBrush"];
         StatusTitle.Text = status.IsReady ? "Global OpenPGP wrapper ready" : "Needs attention";
         StatusDescription.Text = status.Summary;
-        SigningValue.Text = status.IsReady ? "Enabled" : "Not enabled";
+        SigningValue.Text = status.SigningValue;
         SigningValue.Foreground = status.IsReady ? (Microsoft.UI.Xaml.Media.Brush)Application.Current.Resources["SuccessBrush"] : (Microsoft.UI.Xaml.Media.Brush)Application.Current.Resources["WarningBrush"];
-        SigningDetail.Text = status.GitConfigurationMatches ? "Global Git setting points to TajsToucher" : "Global Git setting does not match";
-        GpgValue.Text = status.RealGpgAvailable ? "Available" : "Unavailable";
+        SigningDetail.Text = status.SigningDetail;
+        GpgValue.Text = status.GpgValue;
         GpgValue.Foreground = status.RealGpgAvailable ? (Microsoft.UI.Xaml.Media.Brush)Application.Current.Resources["SuccessBrush"] : (Microsoft.UI.Xaml.Media.Brush)Application.Current.Resources["WarningBrush"];
-        InstallButton.Visibility = status.IsReady ? Visibility.Collapsed : Visibility.Visible;
-        UninstallButton.Visibility = status.IsInstalled && status.GitConfigurationMatches ? Visibility.Visible : Visibility.Collapsed;
+        InstallButton.Visibility = status.CanInstall ? Visibility.Visible : Visibility.Collapsed;
+        UninstallButton.Visibility = status.CanUninstall ? Visibility.Visible : Visibility.Collapsed;
         InlineEnabledFor.RefreshStatus(status);
     }
 

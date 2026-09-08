@@ -151,6 +151,12 @@ Release clears callback state, not the operation outcome.
 Callbacks run outside the lifetime lock. CTAP selection maps explicit response
 statuses instead of treating every negative result as cancellation. Empty PIV
 asymmetric slots are valid metadata results, not application failures.
+PIN/PUK NoData means unavailable metadata and unknown retries, not a busy key.
+An outside-lock callback dispatcher invalidates queued touch requests on
+cancellation/release and orders SDK cancellation after already-dispatched requests.
+Reconnect generations reuse the retiring session's per-key gate, including when
+inventory observed an intervening absence; a new handle is used for SDK work
+only after the old session releases that gate.
 
 `DeviceSignal` is separate from `OpenPgpOperation`. It carries random correlation
 and ephemeral device IDs, occurrence time, kind and outcome. Device identity is

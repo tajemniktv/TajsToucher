@@ -11,11 +11,15 @@ public sealed class DeviceEventTests
         var notices = new List<string>();
         var processed = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         var settings = NotificationSettings.Defaults with { NotifyOnDevicePresence = true, RecordDiagnostics = true };
-        var broker = new DeviceEventBroker(() => settings, _ => throw new IOException(), (message, _) =>
-        { notices.Add(message); if (notices.Count == 2) processed.TrySetResult(); });
+        var sentinel = Guid.NewGuid();
+        var broker = new DeviceEventBroker(() => settings, signal =>
+        { if (signal.CorrelationId == sentinel) processed.TrySetResult(); throw new IOException(); },
+            (message, _) => notices.Add(message));
         var signal = new DeviceSignal(Guid.NewGuid(), Guid.NewGuid(), DateTimeOffset.UtcNow, DeviceSignalKind.Arrived, DeviceOutcome.Ready);
         broker.Publish(signal); broker.Publish(signal with { DeviceId = Guid.NewGuid() });
         broker.Publish(signal with { Timestamp = signal.Timestamp.AddSeconds(4) });
+        // This diagnostic runs only after all three preceding notices were evaluated.
+        broker.Publish(signal with { CorrelationId = sentinel, Kind = DeviceSignalKind.TestFinished });
         try { await processed.Task.WaitAsync(TimeSpan.FromSeconds(3)); }
         finally { await broker.DisposeAsync(); }
         Assert.AreEqual(2, notices.Count);

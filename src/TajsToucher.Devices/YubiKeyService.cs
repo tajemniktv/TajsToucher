@@ -9,6 +9,7 @@ public sealed class YubiKeyService : IDeviceService
     private readonly object sync = new();
     private readonly SemaphoreSlim discoveryGate = new(1);
     private readonly Dictionary<Guid, DeviceEntry> devices = new();
+    private readonly List<DeviceEntry> retiring = new();
     private readonly HashSet<Task> running = new();
     private readonly CancellationTokenSource stopping = new();
     private readonly Timer refreshTimer;
@@ -44,6 +45,7 @@ public sealed class YubiKeyService : IDeviceService
                 foreach (var pair in devices.Where(pair => !found.Any(key => SameDevice(key, pair.Value.Key))).ToArray())
                 {
                     devices.Remove(pair.Key);
+                    retiring.Add(pair.Value);
                     removed.Add(pair.Value);
                     signals.Add(new(Guid.NewGuid(), pair.Key, DateTimeOffset.UtcNow, DeviceSignalKind.Removed, DeviceOutcome.Removed));
                 }
@@ -52,17 +54,22 @@ public sealed class YubiKeyService : IDeviceService
                     var existing = devices.FirstOrDefault(pair => SameDevice(pair.Value.Key, key));
                     if (existing.Value is not null)
                     {
-                        if (existing.Value.Removed.IsCancellationRequested) devices[existing.Key] = new DeviceEntry(key);
+                        if (existing.Value.Removed.IsCancellationRequested) devices[existing.Key] = new DeviceEntry(key, existing.Value.Gate);
                         else existing.Value.Key = key;
                     }
                     else
                     {
                         var id = Guid.NewGuid();
-                        devices.Add(id, new DeviceEntry(key));
+                        var previous = retiring.FirstOrDefault(entry => SameDevice(entry.Key, key));
+                        devices.Add(id, new DeviceEntry(key, previous?.Gate));
+                        if (previous is not null) retiring.Remove(previous);
                         if (initialized) signals.Add(new(Guid.NewGuid(), id, DateTimeOffset.UtcNow, DeviceSignalKind.Arrived, DeviceOutcome.Ready));
                     }
                 }
                 initialized = true;
+                // Keep a removed identity only while its SDK session still owns the
+                // gate. A reconnect must queue behind that session, even if it ignores cancellation.
+                retiring.RemoveAll(entry => entry.Removed.IsCancellationRequested && entry.Gate.CurrentCount != 0);
                 result = new InventoryResult(devices.Select((pair, index) => Snapshot(pair.Key, pair.Value.Key, index)).ToArray(), DeviceOutcome.Ready);
             }
         }
@@ -212,6 +219,7 @@ public sealed class YubiKeyService : IDeviceService
             lock (sync)
             {
                 devices.Clear();
+                retiring.Clear();
                 pending = running.ToArray();
             }
             discovery.PresenceChanged -= OnPresenceChanged;
@@ -223,10 +231,10 @@ public sealed class YubiKeyService : IDeviceService
         Signal = null;
     }
 
-    private sealed class DeviceEntry(IYubiKeyDevice key)
+    private sealed class DeviceEntry(IYubiKeyDevice key, SemaphoreSlim? gate = null)
     {
         public IYubiKeyDevice Key { get; set; } = key;
-        public SemaphoreSlim Gate { get; } = new(1);
+        public SemaphoreSlim Gate { get; } = gate ?? new(1);
         public CancellationTokenSource Removed { get; } = new();
     }
 }

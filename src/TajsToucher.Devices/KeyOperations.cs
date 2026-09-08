@@ -60,9 +60,11 @@ internal sealed class SdkKeyOperations : IKeyOperations
             var outcome = Read($"PIV {slot:X2}", () =>
             {
                 var response = read(slot);
-                if (response.Status == ResponseStatus.NoData && slot is not (PivSlot.Pin or PivSlot.Puk))
+                if (response.Status == ResponseStatus.NoData)
                 {
-                    results.Add(new($"PIV {slot:X2}", DeviceOutcome.Ready, "Empty slot (no key metadata)."));
+                    results.Add(slot is PivSlot.Pin or PivSlot.Puk
+                        ? new($"PIV {slot:X2}", DeviceOutcome.Unavailable, "PIN/PUK metadata is unavailable; retry count is unknown. No PIN/PUK was attempted.")
+                        : new($"PIV {slot:X2}", DeviceOutcome.Ready, "Empty slot (no key metadata)."));
                     return;
                 }
                 var metadata = response.GetData();

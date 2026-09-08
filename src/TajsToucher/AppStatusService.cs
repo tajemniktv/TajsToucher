@@ -9,7 +9,13 @@ internal sealed record AppStatus(
     public bool WrapperAvailable { get; init; }
     public bool GitConfigurationReadable { get; init; }
     public bool StatusReadFailed { get; init; }
-    public bool IsReady => IsInstalled && GitConfigurationReadable && GitConfigurationMatches && WrapperAvailable && RealGpgAvailable;
+    public bool IsReady => !StatusReadFailed && IsInstalled && GitConfigurationReadable && GitConfigurationMatches && WrapperAvailable && RealGpgAvailable;
+    public string SigningValue => StatusReadFailed ? "Unknown" : IsReady ? "Enabled" : "Not enabled";
+    public string SigningDetail => StatusReadFailed ? "Setup status could not be read; run diagnose before changing configuration."
+        : GitConfigurationMatches ? "Global Git setting points to TajsToucher" : "Global Git setting does not match";
+    public string GpgValue => StatusReadFailed ? "Unknown" : RealGpgAvailable ? "Available" : "Unavailable";
+    public bool CanInstall => !StatusReadFailed && !IsReady;
+    public bool CanUninstall => !StatusReadFailed && IsInstalled && GitConfigurationMatches;
 
     public string Summary => StatusReadFailed
         ? "Setup status could not be read. Run diagnose for details."
