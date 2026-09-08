@@ -46,6 +46,22 @@ public sealed partial class HomePage : Page
 
     private void OpenEnabledFor_Click(object sender, RoutedEventArgs e) => NavigateRequested?.Invoke(AppPage.EnabledFor);
 
+    private async void Diagnose_Click(object sender, RoutedEventArgs e)
+    {
+        DiagnoseButton.IsEnabled = false;
+        try
+        {
+            var report = await Task.Run(() => Diagnostics.CaptureReport());
+            RefreshStatus();
+            await ShowMessageAsync(report, "Setup diagnostics");
+        }
+        catch (Exception exception) when (exception is IOException or InvalidOperationException or UnauthorizedAccessException or System.Runtime.InteropServices.COMException)
+        {
+            ActionStatus.Text = $"Diagnostics could not be displayed: {exception.Message}";
+        }
+        finally { DiagnoseButton.IsEnabled = true; }
+    }
+
     private void TestNotification_Click(object sender, RoutedEventArgs e)
     {
         ActionStatus.Text = NotificationService.TryLaunch("TajsToucher", bypassCooldown: true)
@@ -113,7 +129,11 @@ public sealed partial class HomePage : Page
         var dialog = new ContentDialog
         {
             Title = title,
-            Content = message,
+            Content = new ScrollViewer
+            {
+                MaxHeight = 440,
+                Content = new TextBlock { Text = message, TextWrapping = TextWrapping.Wrap, IsTextSelectionEnabled = true },
+            },
             CloseButtonText = "OK",
             XamlRoot = XamlRoot,
         };

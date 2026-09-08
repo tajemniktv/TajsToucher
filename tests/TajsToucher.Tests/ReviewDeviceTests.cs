@@ -11,6 +11,56 @@ namespace TajsToucher.Tests;
 public sealed class ReviewDeviceTests
 {
     [TestMethod]
+    public async Task IdleRemovalIsPrunedByTheSameRefresh()
+    {
+        var source = new Source { Keys = [Key(7)] };
+        await using var service = new YubiKeyService(source);
+        await service.RefreshInventoryAsync();
+        source.Keys = [];
+        await service.RefreshInventoryAsync();
+        Assert.AreEqual(0, service.RetiringDeviceCount);
+    }
+
+    [TestMethod]
+    [DataRow(false)]
+    [DataRow(true)]
+    public async Task CapturedOperationRetainsRetirementBeforeWaiting(bool readStatus)
+    {
+        using var release = new ManualResetEventSlim();
+        var captured = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var source = new Source { Keys = [Key(7)] };
+        var calls = 0;
+        var backend = new Operations
+        {
+            OnIdentify = (_, _, _) => { Interlocked.Increment(ref calls); return DeviceOutcome.Ready; },
+        };
+        await using var service = new YubiKeyService(source, backend, () =>
+        {
+            captured.TrySetResult();
+            release.Wait();
+        });
+        var id = (await service.RefreshInventoryAsync()).Keys.Single().Id;
+        Task operation = readStatus ? service.ReadStatusAsync(id) : service.IdentifyAsync(id, CancellationToken.None);
+        try
+        {
+            await captured.Task.WaitAsync(TimeSpan.FromSeconds(3));
+            source.Keys = [];
+            await service.RefreshInventoryAsync();
+            Assert.AreEqual(1, service.RetiringDeviceCount, "Captured work must remain owned before it starts waiting.");
+            source.Keys = [Key(7)];
+            await service.RefreshInventoryAsync();
+            source.Keys = [];
+            await service.RefreshInventoryAsync();
+            Assert.AreEqual(1, service.RetiringDeviceCount, "Reconnect generations must share capture ownership.");
+            release.Set();
+            await operation.WaitAsync(TimeSpan.FromSeconds(3));
+            Assert.AreEqual(0, service.RetiringDeviceCount);
+            Assert.AreEqual(0, calls);
+        }
+        finally { release.Set(); }
+    }
+
+    [TestMethod]
     [DataRow(false)]
     [DataRow(true)]
     public async Task ReconnectWaitsForOldSessionEvenWhenItIgnoresCancellation(bool observeAbsentInventory)
@@ -46,6 +96,12 @@ public sealed class ReviewDeviceTests
             }
             source.Keys = [newKey];
             var newId = (await service.RefreshInventoryAsync()).Keys.Single().Id;
+            // Remove the replacement while the original SDK call still owns the session.
+            source.Keys = [];
+            await service.RefreshInventoryAsync();
+            Assert.AreEqual(1, service.RetiringDeviceCount);
+            source.Keys = [newKey];
+            newId = (await service.RefreshInventoryAsync()).Keys.Single().Id;
             var second = service.IdentifyAsync(newId, CancellationToken.None);
             await Task.WhenAny(second, Task.Delay(200));
             Assert.IsFalse(second.IsCompleted, "Reconnected key overlapped its retiring SDK session.");

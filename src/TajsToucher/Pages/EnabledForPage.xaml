@@ -56,8 +56,8 @@
                 </Border>
                 <Border Grid.Column="1" Background="{ThemeResource CardBackgroundFillColorDefaultBrush}" Padding="16,12,16,10" CornerRadius="2">
                     <StackPanel Spacing="4">
-                        <TextBlock Text="SSH / FIDO" Foreground="{ThemeResource TextFillColorSecondaryBrush}" FontWeight="SemiBold" />
-                        <TextBlock Text="Not implemented" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                        <TextBlock Text="SSH / FIDO" Foreground="{ThemeResource TextFillColorDisabledBrush}" FontWeight="SemiBold" />
+                        <TextBlock Text="Not implemented" Foreground="{ThemeResource TextFillColorDisabledBrush}" />
                         <TextBlock Text="Hardware-backed SSH flows" Foreground="{ThemeResource TextFillColorSecondaryBrush}" TextWrapping="Wrap" />
                     </StackPanel>
                 </Border>

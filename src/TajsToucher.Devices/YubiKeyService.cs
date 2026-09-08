@@ -15,6 +15,7 @@ public sealed class YubiKeyService : IDeviceService
     private readonly Timer refreshTimer;
     private readonly IKeyDiscovery discovery;
     private readonly IKeyOperations operations;
+    private readonly Action? beforeSessionWait;
     private bool initialized;
     private Task? disposal;
 
@@ -22,10 +23,11 @@ public sealed class YubiKeyService : IDeviceService
     public event Action<DeviceSignal>? Signal;
 
     public YubiKeyService() : this(new SdkKeyDiscovery()) { }
-    internal YubiKeyService(IKeyDiscovery discovery, IKeyOperations? operations = null)
+    internal YubiKeyService(IKeyDiscovery discovery, IKeyOperations? operations = null, Action? beforeSessionWait = null)
     {
         this.discovery = discovery;
         this.operations = operations ?? new SdkKeyOperations();
+        this.beforeSessionWait = beforeSessionWait;
         refreshTimer = new Timer(_state => { _ = RefreshInventoryAsync(); }, null, Timeout.Infinite, Timeout.Infinite);
         discovery.PresenceChanged += OnPresenceChanged;
     }
@@ -54,28 +56,26 @@ public sealed class YubiKeyService : IDeviceService
                     var existing = devices.FirstOrDefault(pair => SameDevice(pair.Value.Key, key));
                     if (existing.Value is not null)
                     {
-                        if (existing.Value.Removed.IsCancellationRequested) devices[existing.Key] = new DeviceEntry(key, existing.Value.Gate);
+                        if (existing.Value.Removed.IsCancellationRequested) devices[existing.Key] = new DeviceEntry(key, existing.Value.Sessions);
                         else existing.Value.Key = key;
                     }
                     else
                     {
                         var id = Guid.NewGuid();
                         var previous = retiring.FirstOrDefault(entry => SameDevice(entry.Key, key));
-                        devices.Add(id, new DeviceEntry(key, previous?.Gate));
+                        devices.Add(id, new DeviceEntry(key, previous?.Sessions));
                         if (previous is not null) retiring.Remove(previous);
                         if (initialized) signals.Add(new(Guid.NewGuid(), id, DateTimeOffset.UtcNow, DeviceSignalKind.Arrived, DeviceOutcome.Ready));
                     }
                 }
                 initialized = true;
-                // Keep a removed identity only while its SDK session still owns the
-                // gate. A reconnect must queue behind that session, even if it ignores cancellation.
-                retiring.RemoveAll(entry => entry.Removed.IsCancellationRequested && entry.Gate.CurrentCount != 0);
                 result = new InventoryResult(devices.Select((pair, index) => Snapshot(pair.Key, pair.Value.Key, index)).ToArray(), DeviceOutcome.Ready);
             }
         }
         catch (Exception ex) { result = new InventoryResult([], Classify(ex)); }
         finally { discoveryGate.Release(); }
         foreach (var entry in removed) entry.Removed.Cancel();
+        lock (sync) PruneRetiring();
         foreach (var signal in signals) Emit(signal);
         PublishInventory(result);
         return result;
@@ -106,11 +106,13 @@ public sealed class YubiKeyService : IDeviceService
         try
         {
             stopping.Token.ThrowIfCancellationRequested();
-            lock (sync) devices.TryGetValue(id, out entry);
+            entry = CaptureEntry(id);
             if (entry is null) return [new("Device", DeviceOutcome.Removed, "Select a connected key.")];
+            beforeSessionWait?.Invoke();
             using var linked = CancellationTokenSource.CreateLinkedTokenSource(stopping.Token, entry.Removed.Token);
             await entry.Gate.WaitAsync(linked.Token).ConfigureAwait(false);
             acquired = true;
+            linked.Token.ThrowIfCancellationRequested();
             IYubiKeyDevice key;
             lock (sync) key = entry.Key;
             var results = operations.ReadStatus(key, linked.Token);
@@ -123,7 +125,11 @@ public sealed class YubiKeyService : IDeviceService
             return [new("Device", entry?.Removed.IsCancellationRequested == true ? DeviceOutcome.Removed : Classify(ex),
                 "Read did not complete; no credentials requested.")];
         }
-        finally { if (acquired) entry!.Gate.Release(); }
+        finally
+        {
+            if (acquired) entry!.Gate.Release();
+            if (entry is not null) ReleaseEntry(entry);
+        }
     });
 
     public Task<DeviceOutcome> IdentifyAsync(Guid id, CancellationToken cancellationToken) => Track(async () =>
@@ -137,11 +143,13 @@ public sealed class YubiKeyService : IDeviceService
         try
         {
             caller.Token.ThrowIfCancellationRequested();
-            lock (sync) devices.TryGetValue(id, out entry);
+            entry = CaptureEntry(id);
             if (entry is null) return outcome = DeviceOutcome.Removed;
+            beforeSessionWait?.Invoke();
             using var linked = CancellationTokenSource.CreateLinkedTokenSource(caller.Token, entry.Removed.Token);
             await entry.Gate.WaitAsync(linked.Token).ConfigureAwait(false);
             acquired = true;
+            linked.Token.ThrowIfCancellationRequested();
             IYubiKeyDevice key;
             lock (sync) key = entry.Key;
             return outcome = operations.Identify(key, linked.Token, requested =>
@@ -157,8 +165,35 @@ public sealed class YubiKeyService : IDeviceService
             Volatile.Write(ref finished, 1);
             Emit(new(correlation, id, DateTimeOffset.UtcNow, DeviceSignalKind.TestFinished, outcome));
             if (acquired) entry!.Gate.Release();
+            if (entry is not null) ReleaseEntry(entry);
         }
     });
+
+    private DeviceEntry? CaptureEntry(Guid id)
+    {
+        lock (sync)
+        {
+            if (!devices.TryGetValue(id, out var entry)) return null;
+            entry.Sessions.Users++;
+            return entry;
+        }
+    }
+
+    private void ReleaseEntry(DeviceEntry entry)
+    {
+        lock (sync)
+        {
+            entry.Sessions.Users--;
+            PruneRetiring();
+        }
+    }
+
+    // Captures include queued work and the interval before WaitAsync. Every reconnect
+    // generation shares this count and gate until all previous work has finished.
+    private void PruneRetiring() => retiring.RemoveAll(entry =>
+        entry.Removed.IsCancellationRequested && entry.Sessions.Users == 0);
+
+    internal int RetiringDeviceCount { get { lock (sync) return retiring.Count; } }
 
     private Task<T> Track<T>(Func<Task<T>> action)
     {
@@ -231,10 +266,17 @@ public sealed class YubiKeyService : IDeviceService
         Signal = null;
     }
 
-    private sealed class DeviceEntry(IYubiKeyDevice key, SemaphoreSlim? gate = null)
+    private sealed class SessionAuthority
+    {
+        public SemaphoreSlim Gate { get; } = new(1);
+        public int Users { get; set; }
+    }
+
+    private sealed class DeviceEntry(IYubiKeyDevice key, SessionAuthority? sessions = null)
     {
         public IYubiKeyDevice Key { get; set; } = key;
-        public SemaphoreSlim Gate { get; } = gate ?? new(1);
+        public SessionAuthority Sessions { get; } = sessions ?? new();
+        public SemaphoreSlim Gate => Sessions.Gate;
         public CancellationTokenSource Removed { get; } = new();
     }
 }

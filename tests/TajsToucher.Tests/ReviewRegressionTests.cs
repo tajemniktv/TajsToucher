@@ -26,9 +26,44 @@ public sealed class ReviewRegressionTests
         {
             using var source = assembly.GetManifestResourceStream(name)!;
             var document = XDocument.Load(source);
-            foreach (var attribute in document.Descendants().Attributes().Where(a => a.Name.LocalName is "Foreground" or "Background" && a.Value.StartsWith('{')))
-                StringAssert.StartsWith(attribute.Value, "{ThemeResource ", $"{name}: brush must follow the active theme.");
+            foreach (var attribute in document.Descendants().Attributes().Where(a => a.Name.LocalName is "Foreground" or "Background" or "Fill" or "Stroke" or "BorderBrush"))
+                Assert.IsTrue(IsThemeSafeBrush(attribute.Value), $"{name}: {attribute.Name}={attribute.Value} must follow the active theme.");
         }
+    }
+
+    private static bool IsThemeSafeBrush(string value) => value is "Transparent" or "{x:Null}" || value.StartsWith("{ThemeResource ", StringComparison.Ordinal);
+
+    [TestMethod]
+    public void DiagnosticsRemainAvailableWhenSetupCannotBeRead()
+    {
+        var report = Diagnostics.CaptureReport(writer => { writer.WriteLine("Partial report"); throw new UnauthorizedAccessException("Access denied"); });
+        StringAssert.Contains(report, "Partial report");
+        StringAssert.Contains(report, "No configuration was changed");
+        StringAssert.Contains(report, "Access denied");
+        using var source = typeof(ReviewRegressionTests).Assembly.GetManifestResourceStream("HomePage.xaml")!;
+        var button = XDocument.Load(source).Descendants().Single(e => (string?)e.Attribute("Content") == "Diagnose setup");
+        Assert.AreEqual("Diagnose_Click", (string?)button.Attribute("Click"));
+        Assert.IsNull(button.Attribute("Visibility"));
+    }
+
+    [TestMethod]
+    public void ThemeGuardRejectsLiteralColorsAndStaticBrushes()
+    {
+        foreach (var value in new[] { "Black", "White", "#171F33", "{StaticResource InkBrush}" })
+            Assert.IsFalse(IsThemeSafeBrush(value), value);
+        foreach (var value in new[] { "Transparent", "{x:Null}", "{ThemeResource TextFillColorPrimaryBrush}" })
+            Assert.IsTrue(IsThemeSafeBrush(value), value);
+    }
+
+    [TestMethod]
+    public void UnreadableGitConfigurationIsNotReportedAsAMismatch()
+    {
+        var status = new AppStatus(true, false, true, "gpg.exe");
+        Assert.AreEqual("Unknown", status.SigningValue);
+        StringAssert.Contains(status.SigningDetail, "could not be read");
+        Assert.IsFalse(status.SigningDetail.Contains("does not match"));
+        StringAssert.Contains((status with { GitConfigurationReadable = true }).SigningDetail, "does not match");
+        StringAssert.Contains((status with { GitConfigurationReadable = true, GitConfigurationMatches = true }).SigningDetail, "points to TajsToucher");
     }
 
     [TestMethod]

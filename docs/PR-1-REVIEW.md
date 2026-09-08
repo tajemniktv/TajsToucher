@@ -62,3 +62,24 @@ Yubico SDK 1.17.3 source. Duplicate comments are grouped below.
 Pinned SDK evidence for comment 4:
 [FindByTransport](https://github.com/Yubico/Yubico.NET.SDK/blob/fe65a725ca9aca468aee16749f51dbc96ac0feeb/Yubico.YubiKey/src/Yubico/YubiKey/YubiKeyDevice.Static.cs#L103-L107)
 and [listener cache/update](https://github.com/Yubico/Yubico.NET.SDK/blob/fe65a725ca9aca468aee16749f51dbc96ac0feeb/Yubico.YubiKey/src/Yubico/YubiKey/YubiKeyDeviceListener.cs#L85).
+
+## Latest review (11 comments)
+
+| Comments | Validation and resolution |
+| --- | --- |
+| 1 | Already fixed in `SdkKeyOperations`: combine enabled capabilities for every available transport using the pinned SDK's USB flags. |
+| 2 | The previous extraction/startup defect was corrected, and subsequent single-file Home, Enabled for, and Devices rendering was observed. The user confirmed Devices opens. This is not full clean-profile/tray acceptance: light/high-contrast, live tray exit, and complete manual interactions remain user-owned. |
+| 3 | Already fixed by `StatusReadFailed`, which reports a setup-read failure without inventing a missing installation or Git-read failure. |
+| 4 | Same pinned-source qualification as above: ordinary `FindAll` refreshes return cached references, not fresh anonymous instances. Do not merge serial-less keys by nonunique firmware/capability fingerprints. |
+| 5, 8 | Unreadable Git configuration now produces an unknown signing value and an explicit unreadable-config detail, not a mismatch. Regression coverage distinguishes unknown, readable mismatch, and readable match. |
+| 6, 7 | Retiring entries are pruned after cancellation and when captured operations finish, under the inventory lock. A shared session authority counts captures before semaphore waiting and persists across reconnect generations; semaphore `CurrentCount` is no longer used as lifetime evidence. Tests cover same-refresh idle cleanup, paused pre-wait read/identify captures, and repeated reconnects while an old synchronous SDK call ignores cancellation. |
+| 9 | Home has an always-available read-only Diagnose setup action. It captures the existing report off the UI thread, shows selectable scrollable output, preserves partial failure details, and does not enable unsafe setup changes merely to provide an action. |
+| 10 | The theme guard inspects literal and markup values for Foreground, Background, Fill, Stroke, and BorderBrush. Only theme resources and explicit transparent/null values pass; negative tests cover literal colors and static brushes. |
+| 11 | The unimplemented SSH/FIDO header and status use the native disabled semantic brush again. |
+
+Release regression suite: **129 passed, 0 failed**. Tests use synthetic discovery/session
+backends; they do not establish physical-key behavior. The separately reported resident
+inventory/partial-capability symptom is not claimed fixed by these review changes.
+The self-contained single-file publish succeeded at the permanent daily-use path;
+its `diagnose` probe exited 0 and reported the saved installation and matching Git
+configuration. The new diagnostic dialog itself has not had a live interaction check.
