@@ -4,7 +4,7 @@ using TajsToucher.Devices;
 
 namespace TajsToucher.Pages;
 
-public sealed class DevicesPage : Page
+public sealed partial class DevicesPage : Page
 {
     private readonly ComboBox selector = new() { Header = "Connected key", DisplayMemberPath = nameof(ConnectedKey.Label), MinWidth = 360 };
     private readonly TextBlock inventory = new() { TextWrapping = TextWrapping.Wrap };
@@ -20,6 +20,7 @@ public sealed class DevicesPage : Page
 
     public DevicesPage()
     {
+        InitializeComponent();
         var panel = new StackPanel { Padding = new Thickness(32), Spacing = 16, MaxWidth = 1200, HorizontalAlignment = HorizontalAlignment.Stretch };
         panel.Children.Add(new TextBlock { Text = "YubiKey devices", FontSize = 28 });
         panel.Children.Add(new TextBlock { Text = "Optional, local SDK diagnostics. Discovery starts only when requested and stays active until app exit. Application reads and touch tests run only when clicked. This does not monitor other apps' touch requests.", TextWrapping = TextWrapping.Wrap });

@@ -7,6 +7,18 @@ namespace TajsToucher.Tests;
 public sealed class ReviewRegressionTests
 {
     [TestMethod]
+    public void NavigationPagesHaveCompiledActivationMetadata()
+    {
+        var provider = new TajsToucher.TajsToucher_XamlTypeInfo.XamlMetaDataProvider();
+        foreach (var page in new[] { typeof(Pages.HomePage), typeof(Pages.SettingsPage), typeof(Pages.EnabledForPage), typeof(Pages.DevicesPage) })
+        {
+            var metadata = provider.GetXamlType(page);
+            Assert.IsNotNull(metadata, $"{page.Name} is missing from the compiled XAML type table.");
+            Assert.IsTrue(metadata.IsConstructible, $"Frame.Navigate cannot activate {page.Name}.");
+        }
+    }
+
+    [TestMethod]
     public void PageBrushReferencesFollowTheNativeTheme()
     {
         var assembly = typeof(ReviewRegressionTests).Assembly;
