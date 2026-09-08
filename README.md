@@ -56,7 +56,11 @@ For a single self-contained Windows x64 executable:
 dotnet publish src\TajsToucher\TajsToucher.csproj -c Release -p:PublishProfile=SingleFile
 ```
 
-The result is `artifacts\publish\single-file\TajsToucher.exe`. It bundles
+The permanent daily-use output is `artifacts\publish\single-file\TajsToucher.exe`.
+Future updates are published to this same location, not task-specific folders.
+Exit the tray app and finish any signing operation before replacing the executable.
+Install for Git from this path once; ordinary updates do not require reinstalling.
+It bundles
 the .NET and Windows App SDK payloads and extracts them into the .NET runtime's
 per-user cache on first launch. Allow extra disk space and startup time for that
 first launch. Move the executable to its final location before running `install`.
