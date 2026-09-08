@@ -83,3 +83,17 @@ inventory/partial-capability symptom is not claimed fixed by these review change
 The self-contained single-file publish succeeded at the permanent daily-use path;
 its `diagnose` probe exited 0 and reported the saved installation and matching Git
 configuration. The new diagnostic dialog itself has not had a live interaction check.
+
+## Diagnostic event-handler review (6 comments)
+
+- 1, 3, 5 are already addressed: combined transport capabilities, explicit
+  setup-read failure state, and the always-visible Diagnose setup action.
+- 2 retains the documented rendering evidence and user-owned full clean-profile/tray
+  acceptance; no additional GUI acceptance is claimed.
+- 4 repeats the same fresh-instance premise disproved by the pinned SDK source
+  above. No nonunique serial-less identity heuristic was added.
+- 6 is valid: the async-void diagnostic handler's filtered catch left unexpected
+  exceptions, including SecurityException, unhandled. Its UI boundary now catches
+  Exception and reports the failure in ActionStatus, while the finally block
+  restores the Diagnose button. The underlying diagnostic service keeps its narrower
+  expected-error handling; no application-wide exception suppression was introduced.

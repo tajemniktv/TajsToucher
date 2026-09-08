@@ -55,7 +55,8 @@ public sealed partial class HomePage : Page
             RefreshStatus();
             await ShowMessageAsync(report, "Setup diagnostics");
         }
-        catch (Exception exception) when (exception is IOException or InvalidOperationException or UnauthorizedAccessException or System.Runtime.InteropServices.COMException)
+        // This async-void UI boundary must also contain unexpected report/display failures.
+        catch (Exception exception)
         {
             ActionStatus.Text = $"Diagnostics could not be displayed: {exception.Message}";
         }
