@@ -6,21 +6,22 @@
     xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
     mc:Ignorable="d"
     Title="TajsToucher">
-    <Grid Background="Transparent">
+    <Grid Background="{ThemeResource ApplicationPageBackgroundThemeBrush}">
         <NavigationView x:Name="AppNavigation"
                         IsBackButtonVisible="Collapsed"
                         IsSettingsVisible="False"
                         IsPaneToggleButtonVisible="False"
                         PaneDisplayMode="Left"
+                        OpenPaneLength="248"
                         Background="Transparent"
                         SelectionChanged="OnNavigationSelectionChanged">
             <NavigationView.PaneHeader>
                 <StackPanel Padding="22,28,22,18" Spacing="8">
                     <TextBlock Text="Your signing companion"
-                               Foreground="{StaticResource SidebarActiveBrush}"
+                               Foreground="{ThemeResource TextFillColorSecondaryBrush}"
                                FontSize="13" />
                     <TextBlock Text="TajsToucher"
-                               Foreground="White"
+                               Foreground="{ThemeResource TextFillColorPrimaryBrush}"
                                FontSize="24"
                                FontWeight="SemiBold" />
                 </StackPanel>
@@ -33,7 +34,7 @@
             </NavigationView.MenuItems>
             <NavigationView.PaneFooter>
                 <TextBlock Text="Local-first  ·  Windows"
-                           Foreground="{StaticResource SidebarActiveBrush}"
+                           Foreground="{ThemeResource TextFillColorSecondaryBrush}"
                            Margin="22,18,22,22"
                            FontSize="12" />
             </NavigationView.PaneFooter>

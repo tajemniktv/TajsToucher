@@ -173,6 +173,9 @@ remains gated on a separately validated askpass lifecycle.
 Closing the app window hides TajsToucher to the system tray instead of stopping
 it. Double-click the tray icon, or use its menu, to reopen the dashboard,
 Settings, or Enabled for. **Exit TajsToucher** in that menu terminates the app.
+The dashboard follows Windows' native light/dark/high-contrast theme. Home's
+embedded settings and integration information share its outer scroll surface;
+the standalone pages keep their own scrolling.
 
 `settings` opens the same app directly on the Settings screen. `app` opens the
 Home screen explicitly.

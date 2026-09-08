@@ -3,74 +3,74 @@
     xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
     Background="Transparent">
-    <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
-        <StackPanel Padding="36,28,36,48" Spacing="14">
+    <ScrollViewer x:Name="PageScroll" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+        <StackPanel x:Name="PageContent" Padding="32,28,32,48" Spacing="14" MaxWidth="1200" HorizontalAlignment="Stretch">
             <TextBlock Text="Enabled for"
-                       Foreground="{StaticResource InkBrush}"
+                       Foreground="{ThemeResource TextFillColorPrimaryBrush}"
                        FontSize="26"
                        FontWeight="SemiBold" />
             <TextBlock Text="Current configuration and the limits of each integration."
-                       Foreground="{StaticResource MutedBrush}"
+                       Foreground="{ThemeResource TextFillColorSecondaryBrush}"
                        Margin="0,0,0,8" />
 
-            <Border Background="{StaticResource CardBackgroundBrush}" Padding="18" CornerRadius="2">
+            <Border Background="{ThemeResource CardBackgroundFillColorDefaultBrush}" Padding="18" CornerRadius="2">
                 <StackPanel Spacing="6">
-                    <TextBlock Text="Git / OpenPGP signing" Foreground="{StaticResource InkBrush}" FontSize="16" FontWeight="SemiBold" />
-                    <TextBlock x:Name="GitStatusText" Text="Checking global setup…" Foreground="{StaticResource MutedBrush}" FontWeight="SemiBold" TextWrapping="Wrap" />
+                    <TextBlock Text="Git / OpenPGP signing" Foreground="{ThemeResource TextFillColorPrimaryBrush}" FontSize="16" FontWeight="SemiBold" />
+                    <TextBlock x:Name="GitStatusText" Text="Checking global setup…" Foreground="{ThemeResource TextFillColorSecondaryBrush}" FontWeight="SemiBold" TextWrapping="Wrap" />
                     <TextBlock Text="Shows a notification when Git asks GnuPG to create a signature. Verification operations stay quiet."
-                               Foreground="{StaticResource MutedBrush}"
+                               Foreground="{ThemeResource TextFillColorSecondaryBrush}"
                                TextWrapping="Wrap" />
                 </StackPanel>
             </Border>
 
-            <Border Background="{StaticResource CardBackgroundBrush}" Padding="18" CornerRadius="2">
+            <Border Background="{ThemeResource CardBackgroundFillColorDefaultBrush}" Padding="18" CornerRadius="2">
                 <StackPanel Spacing="6">
-                    <TextBlock Text="Generic OpenPGP operations" Foreground="{StaticResource InkBrush}" FontSize="16" FontWeight="SemiBold" />
-                    <TextBlock x:Name="OperationRulesText" Foreground="{StaticResource MutedBrush}" TextWrapping="Wrap" />
+                    <TextBlock Text="Generic OpenPGP operations" Foreground="{ThemeResource TextFillColorPrimaryBrush}" FontSize="16" FontWeight="SemiBold" />
+                    <TextBlock x:Name="OperationRulesText" Foreground="{ThemeResource TextFillColorSecondaryBrush}" TextWrapping="Wrap" />
                     <TextBlock Text="Route an operation through TajsToucher.exe with the usual GPG arguments. Direct gpg.exe calls are not observed. Notices are advisory; key and PIN management stay in GnuPG."
-                               Foreground="{StaticResource MutedBrush}" TextWrapping="Wrap" />
+                               Foreground="{ThemeResource TextFillColorSecondaryBrush}" TextWrapping="Wrap" />
                 </StackPanel>
             </Border>
 
-            <Border Background="{StaticResource CardBackgroundBrush}" Padding="18" CornerRadius="2">
+            <Border Background="{ThemeResource CardBackgroundFillColorDefaultBrush}" Padding="18" CornerRadius="2">
                 <StackPanel Spacing="6">
-                    <TextBlock Text="Local operation diagnostics" Foreground="{StaticResource InkBrush}" FontSize="16" FontWeight="SemiBold" />
-                    <TextBlock x:Name="DiagnosticsStatusText" Foreground="{StaticResource MutedBrush}" TextWrapping="Wrap" />
-                    <TextBlock x:Name="DiagnosticsPathText" Foreground="{StaticResource MutedBrush}" TextWrapping="Wrap" IsTextSelectionEnabled="True" />
+                    <TextBlock Text="Local operation diagnostics" Foreground="{ThemeResource TextFillColorPrimaryBrush}" FontSize="16" FontWeight="SemiBold" />
+                    <TextBlock x:Name="DiagnosticsStatusText" Foreground="{ThemeResource TextFillColorSecondaryBrush}" TextWrapping="Wrap" />
+                    <TextBlock x:Name="DiagnosticsPathText" Foreground="{ThemeResource TextFillColorSecondaryBrush}" TextWrapping="Wrap" IsTextSelectionEnabled="True" />
                     <Button Content="Open diagnostics folder" Click="OpenDiagnostics_Click" />
                 </StackPanel>
             </Border>
 
             <TextBlock Text="Optional device diagnostics and coverage limits"
-                       Foreground="{StaticResource MutedBrush}"
+                       Foreground="{ThemeResource TextFillColorSecondaryBrush}"
                        FontSize="16"
                        FontWeight="SemiBold"
                        Margin="0,8,0,0" />
             <Grid ColumnDefinitions="*,*,*" ColumnSpacing="8">
-                <Border Background="{StaticResource CardBackgroundBrush}" Padding="16,12,16,10" CornerRadius="2">
+                <Border Background="{ThemeResource CardBackgroundFillColorDefaultBrush}" Padding="16,12,16,10" CornerRadius="2">
                     <StackPanel Spacing="4">
-                        <TextBlock Text="FIDO2 / CTAP2" Foreground="{StaticResource DisabledBrush}" FontWeight="SemiBold" />
-                        <TextBlock Text="Explicit diagnostics in Devices" Foreground="{StaticResource MutedBrush}" TextWrapping="Wrap" />
-                        <TextBlock Text="No browser or USB interception" Foreground="{StaticResource MutedBrush}" TextWrapping="Wrap" />
+                        <TextBlock Text="FIDO2 / CTAP2" Foreground="{ThemeResource TextFillColorSecondaryBrush}" FontWeight="SemiBold" />
+                        <TextBlock Text="Explicit diagnostics in Devices" Foreground="{ThemeResource TextFillColorSecondaryBrush}" TextWrapping="Wrap" />
+                        <TextBlock Text="No browser or USB interception" Foreground="{ThemeResource TextFillColorSecondaryBrush}" TextWrapping="Wrap" />
                     </StackPanel>
                 </Border>
-                <Border Grid.Column="1" Background="{StaticResource CardBackgroundBrush}" Padding="16,12,16,10" CornerRadius="2">
+                <Border Grid.Column="1" Background="{ThemeResource CardBackgroundFillColorDefaultBrush}" Padding="16,12,16,10" CornerRadius="2">
                     <StackPanel Spacing="4">
-                        <TextBlock Text="SSH / FIDO" Foreground="{StaticResource DisabledBrush}" FontWeight="SemiBold" />
-                        <TextBlock Text="Not implemented" Foreground="{StaticResource DisabledBrush}" />
-                        <TextBlock Text="Hardware-backed SSH flows" Foreground="{StaticResource MutedBrush}" TextWrapping="Wrap" />
+                        <TextBlock Text="SSH / FIDO" Foreground="{ThemeResource TextFillColorSecondaryBrush}" FontWeight="SemiBold" />
+                        <TextBlock Text="Not implemented" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                        <TextBlock Text="Hardware-backed SSH flows" Foreground="{ThemeResource TextFillColorSecondaryBrush}" TextWrapping="Wrap" />
                     </StackPanel>
                 </Border>
-                <Border Grid.Column="2" Background="{StaticResource CardBackgroundBrush}" Padding="16,12,16,10" CornerRadius="2">
+                <Border Grid.Column="2" Background="{ThemeResource CardBackgroundFillColorDefaultBrush}" Padding="16,12,16,10" CornerRadius="2">
                     <StackPanel Spacing="4">
-                        <TextBlock Text="PIV / OATH" Foreground="{StaticResource DisabledBrush}" FontWeight="SemiBold" />
-                        <TextBlock Text="Read-only status in Devices" Foreground="{StaticResource MutedBrush}" TextWrapping="Wrap" />
-                        <TextBlock Text="User-requested reads only; no PIN entry or live activity monitoring" Foreground="{StaticResource MutedBrush}" TextWrapping="Wrap" />
+                        <TextBlock Text="PIV / OATH" Foreground="{ThemeResource TextFillColorSecondaryBrush}" FontWeight="SemiBold" />
+                        <TextBlock Text="Read-only status in Devices" Foreground="{ThemeResource TextFillColorSecondaryBrush}" TextWrapping="Wrap" />
+                        <TextBlock Text="User-requested reads only; no PIN entry or live activity monitoring" Foreground="{ThemeResource TextFillColorSecondaryBrush}" TextWrapping="Wrap" />
                     </StackPanel>
                 </Border>
             </Grid>
             <TextBlock Text="Device discovery starts only when requested. Presence/low-retry notices are opt-in in Settings. Hardware acceptance is pending; Windows may deny direct FIDO access. No global touch monitoring."
-                       Foreground="{StaticResource MutedBrush}"
+                       Foreground="{ThemeResource TextFillColorSecondaryBrush}"
                        TextWrapping="Wrap"
                        Margin="0,6,0,0" />
         </StackPanel>

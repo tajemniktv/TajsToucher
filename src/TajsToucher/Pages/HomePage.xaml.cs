@@ -9,6 +9,8 @@ public sealed partial class HomePage : Page
     public HomePage()
     {
         InitializeComponent();
+        InlineSettings.ConfigureEmbedded();
+        InlineEnabledFor.ConfigureEmbedded();
         InlineSettings.SettingsSaved += (_, _) => RefreshStatus();
         Loaded += (_, _) => RefreshStatus();
     }
@@ -27,14 +29,14 @@ public sealed partial class HomePage : Page
             status = new AppStatus(false, false, false, null) { StatusReadFailed = true };
         }
 
-        StatusDot.Foreground = status.IsReady ? (Microsoft.UI.Xaml.Media.Brush)Application.Current.Resources["SuccessBrush"] : (Microsoft.UI.Xaml.Media.Brush)Application.Current.Resources["WarningBrush"];
+        StatusDot.Foreground = status.IsReady ? (Microsoft.UI.Xaml.Media.Brush)Application.Current.Resources["SystemFillColorSuccessBrush"] : (Microsoft.UI.Xaml.Media.Brush)Application.Current.Resources["SystemFillColorCautionBrush"];
         StatusTitle.Text = status.IsReady ? "Global OpenPGP wrapper ready" : "Needs attention";
         StatusDescription.Text = status.Summary;
         SigningValue.Text = status.SigningValue;
-        SigningValue.Foreground = status.IsReady ? (Microsoft.UI.Xaml.Media.Brush)Application.Current.Resources["SuccessBrush"] : (Microsoft.UI.Xaml.Media.Brush)Application.Current.Resources["WarningBrush"];
+        SigningValue.Foreground = status.IsReady ? (Microsoft.UI.Xaml.Media.Brush)Application.Current.Resources["SystemFillColorSuccessBrush"] : (Microsoft.UI.Xaml.Media.Brush)Application.Current.Resources["SystemFillColorCautionBrush"];
         SigningDetail.Text = status.SigningDetail;
         GpgValue.Text = status.GpgValue;
-        GpgValue.Foreground = status.RealGpgAvailable ? (Microsoft.UI.Xaml.Media.Brush)Application.Current.Resources["SuccessBrush"] : (Microsoft.UI.Xaml.Media.Brush)Application.Current.Resources["WarningBrush"];
+        GpgValue.Foreground = status.RealGpgAvailable ? (Microsoft.UI.Xaml.Media.Brush)Application.Current.Resources["SystemFillColorSuccessBrush"] : (Microsoft.UI.Xaml.Media.Brush)Application.Current.Resources["SystemFillColorCautionBrush"];
         InstallButton.Visibility = status.CanInstall ? Visibility.Visible : Visibility.Collapsed;
         UninstallButton.Visibility = status.CanUninstall ? Visibility.Visible : Visibility.Collapsed;
         InlineEnabledFor.RefreshStatus(status);

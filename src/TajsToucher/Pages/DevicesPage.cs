@@ -20,8 +20,7 @@ public sealed class DevicesPage : Page
 
     public DevicesPage()
     {
-        Foreground = (Microsoft.UI.Xaml.Media.Brush)Application.Current.Resources["InkBrush"];
-        var panel = new StackPanel { Padding = new Thickness(32), Spacing = 16 };
+        var panel = new StackPanel { Padding = new Thickness(32), Spacing = 16, MaxWidth = 1200, HorizontalAlignment = HorizontalAlignment.Stretch };
         panel.Children.Add(new TextBlock { Text = "YubiKey devices", FontSize = 28 });
         panel.Children.Add(new TextBlock { Text = "Optional, local SDK diagnostics. Discovery starts only when requested and stays active until app exit. Application reads and touch tests run only when clicked. This does not monitor other apps' touch requests.", TextWrapping = TextWrapping.Wrap });
         panel.Children.Add(connect);

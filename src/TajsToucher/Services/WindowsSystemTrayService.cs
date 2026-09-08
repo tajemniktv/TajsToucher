@@ -148,25 +148,35 @@ internal sealed class WindowsSystemTrayService : IDisposable
 
         if (message == WmCommand)
         {
-            switch (unchecked((uint)wParam.ToUInt64()) & 0xFFFFu)
-            {
-                case CommandOpen:
-                    OpenDashboardRequested?.Invoke(this, EventArgs.Empty);
-                    break;
-                case CommandSettings:
-                    OpenSettingsRequested?.Invoke(this, EventArgs.Empty);
-                    break;
-                case CommandEnabledFor:
-                    OpenEnabledForRequested?.Invoke(this, EventArgs.Empty);
-                    break;
-                case CommandExit:
-                    ExitRequested?.Invoke(this, EventArgs.Empty);
-                    break;
-            }
+            ProcessMenuCommand(unchecked((uint)wParam.ToUInt64()) & 0xFFFFu);
             return 0;
         }
 
         return DefWindowProcW(window, message, wParam, lParam);
+    }
+
+    internal void ProcessMenuCommand(uint command)
+    {
+        switch (command)
+        {
+            case CommandOpen:
+                OpenDashboardRequested?.Invoke(this, EventArgs.Empty);
+                break;
+            case CommandSettings:
+                OpenSettingsRequested?.Invoke(this, EventArgs.Empty);
+                break;
+            case CommandEnabledFor:
+                OpenEnabledForRequested?.Invoke(this, EventArgs.Empty);
+                break;
+            case CommandExit:
+                ExitRequested?.Invoke(this, EventArgs.Empty);
+                break;
+        }
+    }
+
+    internal static void DispatchMenuSelection(uint selected, Action<uint> postCommand)
+    {
+        if (selected != 0) postCommand(selected);
     }
 
     private void ReAddTrayIcon()
@@ -204,7 +214,10 @@ internal sealed class WindowsSystemTrayService : IDisposable
             _ = AppendMenuW(menu, MfSeparator, 0, null);
             _ = AppendMenuW(menu, MfString, CommandExit, "Exit TajsToucher");
             _ = SetForegroundWindow(windowHandle);
-            _ = TrackPopupMenu(menu, TpmRightButton | TpmReturnCmd | TpmNoNotify, point.X, point.Y, 0, windowHandle, 0);
+            var selected = TrackPopupMenu(menu, TpmRightButton | TpmReturnCmd | TpmNoNotify, point.X, point.Y, 0, windowHandle, 0);
+            // TPM_RETURNCMD / TPM_NONOTIFY suppress WM_COMMAND. Queue the returned
+            // command ourselves, after the native popup loop has unwound.
+            DispatchMenuSelection(selected, command => PostMessageW(windowHandle, WmCommand, command, 0));
             _ = PostMessageW(windowHandle, WmNull, 0, 0);
         }
         finally

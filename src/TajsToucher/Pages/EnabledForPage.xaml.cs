@@ -31,6 +31,13 @@ public sealed partial class EnabledForPage : Page
         }
     }
 
+    internal void ConfigureEmbedded()
+    {
+        PageContent.Padding = new Thickness(0);
+        PageScroll.VerticalScrollMode = ScrollMode.Disabled;
+        PageScroll.VerticalScrollBarVisibility = ScrollBarVisibility.Disabled;
+    }
+
     private static string State(bool enabled) => enabled ? "on" : "off";
 
     private void OpenDiagnostics_Click(object sender, RoutedEventArgs e)

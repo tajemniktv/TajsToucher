@@ -19,6 +19,13 @@ public sealed partial class SettingsPage : Page
 
     public event EventHandler? SettingsSaved;
 
+    internal void ConfigureEmbedded()
+    {
+        PageContent.Padding = new Thickness(0);
+        PageScroll.VerticalScrollMode = ScrollMode.Disabled;
+        PageScroll.VerticalScrollBarVisibility = ScrollBarVisibility.Disabled;
+    }
+
     internal void ReloadSettings()
     {
         LoadSettings(configurationStore.LoadNotificationSettings());

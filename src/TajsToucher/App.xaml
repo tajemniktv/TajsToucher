@@ -9,16 +9,8 @@
                 <controls:XamlControlsResources />
             </ResourceDictionary.MergedDictionaries>
 
-            <SolidColorBrush x:Key="PageBackgroundBrush" Color="#DDF5F7FA" />
-            <SolidColorBrush x:Key="CardBackgroundBrush" Color="#E8FFFFFF" />
-            <SolidColorBrush x:Key="SidebarBackgroundBrush" Color="#A6172033" />
-            <SolidColorBrush x:Key="SidebarActiveBrush" Color="#90FFFFFF" />
-            <SolidColorBrush x:Key="InkBrush" Color="#171F33" />
-            <SolidColorBrush x:Key="MutedBrush" Color="#556071" />
-            <SolidColorBrush x:Key="AccentBrush" Color="#3B82F6" />
-            <SolidColorBrush x:Key="SuccessBrush" Color="#16A34A" />
-            <SolidColorBrush x:Key="WarningBrush" Color="#CA8A04" />
-            <SolidColorBrush x:Key="DisabledBrush" Color="#94A3B8" />
+            <!-- Pages use WinUI semantic ThemeResource brushes so text, cards,
+                 and native controls follow the same light/dark/high-contrast theme. -->
 
         </ResourceDictionary>
     </Application.Resources>

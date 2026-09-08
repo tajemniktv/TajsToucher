@@ -7,6 +7,40 @@ namespace TajsToucher.Tests;
 public sealed class ReviewRegressionTests
 {
     [TestMethod]
+    public void PageBrushReferencesFollowTheNativeTheme()
+    {
+        var assembly = typeof(ReviewRegressionTests).Assembly;
+        foreach (var name in assembly.GetManifestResourceNames().Where(name => name.EndsWith(".xaml")))
+        {
+            using var source = assembly.GetManifestResourceStream(name)!;
+            var document = XDocument.Load(source);
+            foreach (var attribute in document.Descendants().Attributes().Where(a => a.Name.LocalName is "Foreground" or "Background" && a.Value.StartsWith('{')))
+                StringAssert.StartsWith(attribute.Value, "{ThemeResource ", $"{name}: brush must follow the active theme.");
+        }
+    }
+
+    [TestMethod]
+    public void TraySelectionDispatchesExitAndIgnoresDismissal()
+    {
+        using var tray = new TajsToucher.Services.WindowsSystemTrayService();
+        var exits = 0;
+        var opens = 0;
+        var settings = 0;
+        var enabled = 0;
+        tray.ExitRequested += (_, _) => exits++;
+        tray.OpenDashboardRequested += (_, _) => opens++;
+        tray.OpenSettingsRequested += (_, _) => settings++;
+        tray.OpenEnabledForRequested += (_, _) => enabled++;
+        foreach (var selected in new uint[] { 1001, 1002, 1003, 1004, 0 })
+            TajsToucher.Services.WindowsSystemTrayService.DispatchMenuSelection(selected, tray.ProcessMenuCommand);
+        Assert.AreEqual(1, exits);
+        Assert.AreEqual(1, opens);
+        Assert.AreEqual(1, settings);
+        Assert.AreEqual(1, enabled);
+        TajsToucher.Services.WindowsSystemTrayService.DispatchMenuSelection(0, _ => Assert.Fail("Dismissal is not a command."));
+    }
+
+    [TestMethod]
     public void NavigationIconsAreValidWinUiSymbols()
     {
         using var source = typeof(ReviewRegressionTests).Assembly.GetManifestResourceStream("MainWindow.xaml")!;
