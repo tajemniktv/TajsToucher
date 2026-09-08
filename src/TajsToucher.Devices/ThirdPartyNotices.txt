@@ -1,0 +1,7 @@
+TajsToucher optional device support uses Yubico.YubiKey 1.17.3,
+Yubico.Core 1.17.3, and its transitive native Yubico.NativeShims 1.17.2.
+Copyright Yubico AB. SDK source: https://github.com/Yubico/Yubico.NET.SDK
+The SDK is distributed under Apache License 2.0 with additional component
+notices. Complete SDK license texts accompany this build in licenses/.
+The NativeShims NuGet package does not contain a separate license file;
+it is part of the same SDK source repository.

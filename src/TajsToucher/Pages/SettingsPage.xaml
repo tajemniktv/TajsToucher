@@ -9,7 +9,7 @@
                        Foreground="{StaticResource InkBrush}"
                        FontSize="26"
                        FontWeight="SemiBold" />
-            <TextBlock Text="Choose how TajsToucher presents Git signing requests."
+            <TextBlock Text="Choose which GnuPG requests TajsToucher presents and how they look."
                        Foreground="{StaticResource MutedBrush}"
                        Margin="0,0,0,8" />
 
@@ -39,10 +39,28 @@
                 <TextBlock Text="Template help" Grid.Row="3" Foreground="{StaticResource MutedBrush}" />
                 <TextBlock Grid.Row="3"
                            Grid.Column="1"
-                           Text="Use {Repository} in the title or text. If omitted from the text, the repository is appended automatically."
+                           Text="Use {Operation} and {Repository} in the title or text. If omitted from the text, the repository is appended automatically. Custom text is shared by all selected operations."
                            TextWrapping="Wrap"
                            Foreground="{StaticResource MutedBrush}" />
             </Grid>
+
+            <ToggleSwitch x:Name="SoundToggle" Header="Notification sound" OnContent="Use Windows notification sound" OffContent="Silent" />
+            <NumberBox x:Name="CooldownNumberBox" Header="Notification cooldown (seconds)" Minimum="0" Maximum="300" SmallChange="1" SpinButtonPlacementMode="Compact" />
+            <TextBlock Text="0 shows every selected request. Cooldown applies across operations and repositories. Tests and enabled failure alerts bypass it. Windows settings still control sound and visibility."
+                       TextWrapping="Wrap" Foreground="{StaticResource MutedBrush}" />
+
+            <TextBlock Text="Operation notification rules" FontSize="18" FontWeight="SemiBold" Foreground="{StaticResource InkBrush}" Margin="0,12,0,0" />
+            <ToggleSwitch x:Name="SigningToggle" Header="Signing requests" />
+            <ToggleSwitch x:Name="EncryptionToggle" Header="Encryption requests (opt-in)" />
+            <ToggleSwitch x:Name="DecryptionToggle" Header="Decryption requests (opt-in)" />
+            <ToggleSwitch x:Name="FailureToggle" Header="Failure alerts for selected operations (opt-in)" />
+            <TextBlock Text="Only GnuPG invocations routed through TajsToucher are observed. Requests do not prove that a hardware key needs touch. Verification and key/PIN management remain unobserved. These rules never block an operation."
+                       TextWrapping="Wrap" Foreground="{StaticResource MutedBrush}" />
+            <ToggleSwitch x:Name="DiagnosticsToggle" Header="Record operation diagnostics locally (opt-in)" />
+            <ToggleSwitch x:Name="DevicePresenceToggle" Header="Key arrival/removal notices after starting discovery (opt-in)" />
+            <ToggleSwitch x:Name="LowRetriesToggle" Header="Low-retry warning after an explicit application-status read (opt-in)" />
+            <TextBlock Text="Records timestamps, correlation IDs, operation types, exit codes, and wrapper elapsed time in two bounded local log files. No arguments, repository names, key IDs, error output, or payloads. Disabling recording retains existing files. Find them on Enabled for."
+                       TextWrapping="Wrap" Foreground="{StaticResource MutedBrush}" />
 
             <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Spacing="8" Margin="0,8,0,0">
                 <Button Content="Reset defaults" Click="ResetDefaults_Click" />

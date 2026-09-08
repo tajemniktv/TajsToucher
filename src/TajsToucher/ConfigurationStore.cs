@@ -7,13 +7,13 @@ internal sealed record InstallationState(
     string RealGpgPath,
     IReadOnlyList<string> PreviousOpenPgpPrograms);
 
-internal sealed class ConfigurationStore
+internal sealed class ConfigurationStore(string registryPath = "Software\\TajsToucher")
 {
-    private const string RegistryPath = "Software\\TajsToucher";
+    internal const int MaximumPreviousPrograms = 32;
 
     public InstallationState? Load()
     {
-        using var key = Registry.CurrentUser.OpenSubKey(RegistryPath, writable: false);
+        using var key = Registry.CurrentUser.OpenSubKey(registryPath, writable: false);
         if (key is null)
         {
             return null;
@@ -27,7 +27,7 @@ internal sealed class ConfigurationStore
         }
 
         var count = key.GetValue("PreviousProgramCount") is int storedCount ? storedCount : 0;
-        if (count < 0 || count > 32)
+        if (count < 0 || count > MaximumPreviousPrograms)
         {
             return null;
         }
@@ -35,7 +35,7 @@ internal sealed class ConfigurationStore
         var previousPrograms = new List<string>(count);
         for (var index = 0; index < count; index++)
         {
-            if (key.GetValue($"PreviousProgram{index}") is not string value || string.IsNullOrWhiteSpace(value))
+            if (key.GetValue($"PreviousProgram{index}") is not string value)
             {
                 return null;
             }
@@ -48,7 +48,7 @@ internal sealed class ConfigurationStore
 
     public NotificationSettings LoadNotificationSettings()
     {
-        using var key = Registry.CurrentUser.OpenSubKey(RegistryPath, writable: false);
+        using var key = Registry.CurrentUser.OpenSubKey(registryPath, writable: false);
         if (key is null)
         {
             return NotificationSettings.Defaults;
@@ -57,29 +57,56 @@ internal sealed class ConfigurationStore
         return new NotificationSettings(
                 key.GetValue("NotificationTitle") as string ?? NotificationSettings.DefaultTitle,
                 key.GetValue("NotificationText") as string ?? NotificationSettings.DefaultText,
-                key.GetValue("NotificationIconPath") as string ?? string.Empty)
+                key.GetValue("NotificationIconPath") as string ?? string.Empty,
+                key.GetValue("NotificationSound") is not int sound || sound != 0,
+                key.GetValue("NotificationCooldownSeconds") is int cooldown ? cooldown : 0)
+            {
+                NotifyOnSigning = key.GetValue("NotifyOnSigning") is not int signing || signing != 0,
+                NotifyOnEncryption = key.GetValue("NotifyOnEncryption") is int encryption && encryption != 0,
+                NotifyOnDecryption = key.GetValue("NotifyOnDecryption") is int decryption && decryption != 0,
+                NotifyOnFailure = key.GetValue("NotifyOnFailure") is int failure && failure != 0,
+                RecordDiagnostics = key.GetValue("RecordDiagnostics") is int diagnostics && diagnostics != 0,
+                NotifyOnDevicePresence = key.GetValue("NotifyOnDevicePresence") is int presence && presence != 0,
+                NotifyOnLowRetries = key.GetValue("NotifyOnLowRetries") is int retries && retries != 0,
+            }
             .Normalize();
     }
 
     public void SaveNotificationSettings(NotificationSettings settings)
     {
         var normalized = settings.Normalize();
-        using var key = Registry.CurrentUser.CreateSubKey(RegistryPath, writable: true)
+        using var key = Registry.CurrentUser.CreateSubKey(registryPath, writable: true)
                        ?? throw new InvalidOperationException("The per-user configuration key could not be created.");
         key.SetValue("NotificationTitle", normalized.Title, RegistryValueKind.String);
         key.SetValue("NotificationText", normalized.Text, RegistryValueKind.String);
         key.SetValue("NotificationIconPath", normalized.IconPath, RegistryValueKind.String);
+        key.SetValue("NotificationSound", normalized.PlaySound ? 1 : 0, RegistryValueKind.DWord);
+        key.SetValue("NotificationCooldownSeconds", normalized.CooldownSeconds, RegistryValueKind.DWord);
+        key.SetValue("NotifyOnSigning", normalized.NotifyOnSigning ? 1 : 0, RegistryValueKind.DWord);
+        key.SetValue("NotifyOnEncryption", normalized.NotifyOnEncryption ? 1 : 0, RegistryValueKind.DWord);
+        key.SetValue("NotifyOnDecryption", normalized.NotifyOnDecryption ? 1 : 0, RegistryValueKind.DWord);
+        key.SetValue("NotifyOnFailure", normalized.NotifyOnFailure ? 1 : 0, RegistryValueKind.DWord);
+        key.SetValue("RecordDiagnostics", normalized.RecordDiagnostics ? 1 : 0, RegistryValueKind.DWord);
+        key.SetValue("NotifyOnDevicePresence", normalized.NotifyOnDevicePresence ? 1 : 0, RegistryValueKind.DWord);
+        key.SetValue("NotifyOnLowRetries", normalized.NotifyOnLowRetries ? 1 : 0, RegistryValueKind.DWord);
     }
 
     public void Save(InstallationState state)
     {
-        using var key = Registry.CurrentUser.CreateSubKey(RegistryPath, writable: true)
+        if (state.PreviousOpenPgpPrograms.Count > MaximumPreviousPrograms)
+        {
+            throw new InvalidOperationException("Too many previous Git program values to save safely.");
+        }
+
+        using var key = Registry.CurrentUser.CreateSubKey(registryPath, writable: true)
                        ?? throw new InvalidOperationException("The per-user configuration key could not be created.");
 
         key.SetValue("WrapperPath", state.WrapperPath, RegistryValueKind.String);
         key.SetValue("RealGpgPath", state.RealGpgPath, RegistryValueKind.String);
 
-        var oldCount = key.GetValue("PreviousProgramCount") is int storedCount ? storedCount : 0;
+        var oldCount = key.GetValue("PreviousProgramCount") is int storedCount
+            ? Math.Clamp(storedCount, 0, MaximumPreviousPrograms)
+            : 0;
         for (var index = 0; index < oldCount; index++)
         {
             key.DeleteValue($"PreviousProgram{index}", throwOnMissingValue: false);
@@ -95,7 +122,7 @@ internal sealed class ConfigurationStore
     public void ClearInstallationState()
     {
         bool empty;
-        using (var key = Registry.CurrentUser.OpenSubKey(RegistryPath, writable: true))
+        using (var key = Registry.CurrentUser.OpenSubKey(registryPath, writable: true))
         {
             if (key is null)
             {
@@ -118,7 +145,7 @@ internal sealed class ConfigurationStore
 
         if (empty)
         {
-            Registry.CurrentUser.DeleteSubKeyTree(RegistryPath, throwOnMissingSubKey: false);
+            Registry.CurrentUser.DeleteSubKeyTree(registryPath, throwOnMissingSubKey: false);
         }
     }
 }

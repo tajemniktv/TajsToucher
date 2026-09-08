@@ -20,6 +20,7 @@ public sealed partial class MainWindow : Window
     {
         var item = page switch
         {
+            AppPage.Devices => AppNavigation.MenuItems.OfType<NavigationViewItem>().First(item => Equals(item.Tag, nameof(AppPage.Devices))),
             AppPage.Settings => AppNavigation.MenuItems.OfType<NavigationViewItem>().First(item => Equals(item.Tag, nameof(AppPage.Settings))),
             AppPage.EnabledFor => AppNavigation.MenuItems.OfType<NavigationViewItem>().First(item => Equals(item.Tag, nameof(AppPage.EnabledFor))),
             _ => AppNavigation.MenuItems.OfType<NavigationViewItem>().First(item => Equals(item.Tag, nameof(AppPage.Home))),
@@ -41,6 +42,7 @@ public sealed partial class MainWindow : Window
     {
         ContentFrame.Navigate(page switch
         {
+            AppPage.Devices => typeof(DevicesPage),
             AppPage.Settings => typeof(SettingsPage),
             AppPage.EnabledFor => typeof(EnabledForPage),
             _ => typeof(HomePage),

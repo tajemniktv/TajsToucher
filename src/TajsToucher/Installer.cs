@@ -22,9 +22,9 @@ internal static class Installer
         }
 
         var currentIsThisInstallation = existingState is not null &&
-                                        IsWrapperConfiguration(currentPrograms, existingState.WrapperPath);
+                                        GitConfigService.IsWrapperConfiguration(currentPrograms, existingState.WrapperPath);
         if (!currentIsThisInstallation &&
-            IsWrapperConfiguration(currentPrograms, wrapperPath) &&
+            GitConfigService.IsWrapperConfiguration(currentPrograms, wrapperPath) &&
             existingState is null)
         {
             Console.Error.WriteLine(
@@ -35,6 +35,12 @@ internal static class Installer
         var previousPrograms = currentIsThisInstallation
             ? existingState!.PreviousOpenPgpPrograms
             : currentPrograms;
+
+        if (previousPrograms.Count > ConfigurationStore.MaximumPreviousPrograms)
+        {
+            Console.Error.WriteLine("TajsToucher: too many existing Git program values to back up safely; Git was not changed.");
+            return 1;
+        }
 
         if (!git.TrySetGlobalProgram(wrapperPath))
         {
@@ -50,7 +56,10 @@ internal static class Installer
         {
             // Do not leave Git pointing at an untracked wrapper if its
             // rollback state cannot be persisted.
-            _ = git.TryRestoreGlobalPrograms(currentPrograms);
+            if (!git.TryRestoreGlobalPrograms(currentPrograms))
+            {
+                Console.Error.WriteLine("TajsToucher: rollback also failed. Check Git's global gpg.openpgp.program before signing.");
+            }
             Console.Error.WriteLine($"TajsToucher: could not save installation state: {exception.Message}");
             return 1;
         }
@@ -77,7 +86,7 @@ internal static class Installer
             return 1;
         }
 
-        if (!IsWrapperConfiguration(currentPrograms, state.WrapperPath))
+        if (!GitConfigService.IsWrapperConfiguration(currentPrograms, state.WrapperPath))
         {
             Console.Error.WriteLine(
                 "TajsToucher: Git's setting has changed since installation; leaving it untouched and retaining saved state.");
@@ -102,11 +111,6 @@ internal static class Installer
 
         Console.WriteLine("Uninstalled TajsToucher and restored Git's previous gpg.openpgp.program setting.");
         return 0;
-    }
-
-    private static bool IsWrapperConfiguration(IReadOnlyList<string> programs, string wrapperPath)
-    {
-        return programs.Count == 1 && ExecutableLocator.AreSamePath(programs[0], wrapperPath);
     }
 
     private static string CurrentExecutablePath()

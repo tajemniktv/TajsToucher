@@ -29,6 +29,7 @@
                 <NavigationViewItem Content="Home" Tag="Home" Icon="Home" IsSelected="True" />
                 <NavigationViewItem Content="Settings" Tag="Settings" Icon="Setting" />
                 <NavigationViewItem Content="Enabled for" Tag="EnabledFor" Icon="Permissions" />
+                <NavigationViewItem Content="Devices" Tag="Devices" Icon="Usb" />
             </NavigationView.MenuItems>
             <NavigationView.PaneFooter>
                 <TextBlock Text="Local-first  ·  Windows"

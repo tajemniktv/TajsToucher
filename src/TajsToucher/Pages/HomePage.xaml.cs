@@ -6,8 +6,6 @@ namespace TajsToucher.Pages;
 
 public sealed partial class HomePage : Page
 {
-    private AppStatus currentStatus = new(false, false, false, null);
-
     public HomePage()
     {
         InitializeComponent();
@@ -29,19 +27,17 @@ public sealed partial class HomePage : Page
             status = new AppStatus(false, false, false, null);
         }
 
-        currentStatus = status;
         StatusDot.Foreground = status.IsReady ? (Microsoft.UI.Xaml.Media.Brush)Application.Current.Resources["SuccessBrush"] : (Microsoft.UI.Xaml.Media.Brush)Application.Current.Resources["WarningBrush"];
-        StatusTitle.Text = status.IsReady ? "Ready for Git signing" : "Needs setup";
-        StatusDescription.Text = status.IsReady
-            ? "Git is connected and TajsToucher can reach your real GnuPG installation."
-            : "Use Install for Git below to connect Git, then keep working from this dashboard.";
+        StatusTitle.Text = status.IsReady ? "Global OpenPGP wrapper ready" : "Needs attention";
+        StatusDescription.Text = status.Summary;
         SigningValue.Text = status.IsReady ? "Enabled" : "Not enabled";
         SigningValue.Foreground = status.IsReady ? (Microsoft.UI.Xaml.Media.Brush)Application.Current.Resources["SuccessBrush"] : (Microsoft.UI.Xaml.Media.Brush)Application.Current.Resources["WarningBrush"];
-        SigningDetail.Text = status.GitConfigurationMatches ? "Git is using TajsToucher" : "Git is not connected yet";
+        SigningDetail.Text = status.GitConfigurationMatches ? "Global Git setting points to TajsToucher" : "Global Git setting does not match";
         GpgValue.Text = status.RealGpgAvailable ? "Available" : "Unavailable";
         GpgValue.Foreground = status.RealGpgAvailable ? (Microsoft.UI.Xaml.Media.Brush)Application.Current.Resources["SuccessBrush"] : (Microsoft.UI.Xaml.Media.Brush)Application.Current.Resources["WarningBrush"];
         InstallButton.Visibility = status.IsReady ? Visibility.Collapsed : Visibility.Visible;
         UninstallButton.Visibility = status.IsInstalled && status.GitConfigurationMatches ? Visibility.Visible : Visibility.Collapsed;
+        InlineEnabledFor.RefreshStatus(status);
     }
 
     private void OpenSettings_Click(object sender, RoutedEventArgs e) => NavigateRequested?.Invoke(AppPage.Settings);
@@ -50,7 +46,7 @@ public sealed partial class HomePage : Page
 
     private void TestNotification_Click(object sender, RoutedEventArgs e)
     {
-        ActionStatus.Text = NotificationService.TryLaunch("TajsToucher")
+        ActionStatus.Text = NotificationService.TryLaunch("TajsToucher", bypassCooldown: true)
             ? "Test notification launched."
             : "The notification helper could not be started.";
     }
@@ -62,12 +58,12 @@ public sealed partial class HomePage : Page
             var result = Installer.Install();
             ActionStatus.Text = result == 0
                 ? "Git is now connected to TajsToucher."
-                : "Install failed; Git was left unchanged.";
+                : "Install failed. Run diagnose and check Git's global configuration before retrying.";
             RefreshStatus();
         }
         catch (Exception exception) when (exception is IOException or InvalidOperationException or UnauthorizedAccessException)
         {
-            ActionStatus.Text = "Install failed; Git was left unchanged.";
+            ActionStatus.Text = "Install failed. Check Git's global configuration before retrying.";
             _ = ShowMessageAsync(exception.Message, "TajsToucher");
         }
     }
@@ -93,14 +89,14 @@ public sealed partial class HomePage : Page
             var result = Installer.Uninstall();
             ActionStatus.Text = result == 0
                 ? "TajsToucher was removed and Git was restored."
-                : currentStatus.GitConfigurationMatches
-                    ? "Uninstall failed; Git was left unchanged."
-                    : "Git changed elsewhere; saved installation state was kept.";
+                : result == 2
+                    ? "Git changed elsewhere; saved installation state was kept."
+                    : "Uninstall failed. Check Git's global configuration; restoration may be incomplete.";
             RefreshStatus();
         }
         catch (Exception exception) when (exception is IOException or InvalidOperationException or UnauthorizedAccessException)
         {
-            ActionStatus.Text = "Uninstall failed; Git was left unchanged.";
+            ActionStatus.Text = "Uninstall failed. Check Git's global configuration; restoration may be incomplete.";
             await ShowMessageAsync(exception.Message, "TajsToucher");
         }
     }

@@ -15,6 +15,16 @@ public partial class App : Application
     internal static AppPage InitialPage { get; set; } = AppPage.Home;
 
     internal static MainWindow? MainWindowInstance { get; private set; }
+    internal static IAsyncDisposable? DeviceFeatureLifetime { get; set; }
+
+    internal static void ShowDeviceNotice(string message, NotificationSettings settings)
+    {
+        MainWindowInstance?.DispatcherQueue.TryEnqueue(() =>
+        {
+            if (Current is App app && !app.exitRequested)
+                app.trayService.ShowDeviceNotice(message, settings.PlaySound);
+        });
+    }
 
     public App()
     {
@@ -67,7 +77,7 @@ public partial class App : Application
         sender.Hide();
     }
 
-    private void RequestExit()
+    private async void RequestExit()
     {
         if (exitRequested)
         {
@@ -75,6 +85,12 @@ public partial class App : Application
         }
 
         exitRequested = true;
+        if (DeviceFeatureLifetime is not null)
+        {
+            try { await DeviceFeatureLifetime.DisposeAsync(); }
+            catch { /* Optional hardware support must not prevent exiting. */ }
+            DeviceFeatureLifetime = null;
+        }
         trayService.Dispose();
         mainWindow?.Close();
         Exit();

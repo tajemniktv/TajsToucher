@@ -15,11 +15,14 @@ internal static class GpgProxy
             return 1;
         }
 
-        if (OperationClassifier.IsSigning(args))
-        {
-            NotificationService.TryLaunch(RepositoryContext.TryGetName());
-        }
+        var observation = OperationObservation.TryStart(OperationClassifier.Classify(args));
+        var exitCode = ForwardProcess(realGpg, args, Console.OpenStandardInput(), Console.OpenStandardOutput(), Console.OpenStandardError());
+        observation?.Complete(exitCode);
+        return exitCode;
+    }
 
+    internal static int ForwardProcess(string realGpg, IReadOnlyList<string> args, Stream input, Stream output, Stream error)
+    {
         var startInfo = new ProcessStartInfo
         {
             FileName = realGpg,
@@ -48,9 +51,9 @@ internal static class GpgProxy
             // the caller's standard handles when it starts another process.
             // Forward the streams as bytes so Git sees the same data and EOF
             // behavior it would see from a direct GPG invocation.
-            _ = ForwardAsync(Console.OpenStandardInput(), process.StandardInput.BaseStream, closeDestination: true);
-            var outputTask = ForwardAsync(process.StandardOutput.BaseStream, Console.OpenStandardOutput(), closeDestination: false);
-            var errorTask = ForwardAsync(process.StandardError.BaseStream, Console.OpenStandardError(), closeDestination: false);
+            _ = ForwardAsync(input, process.StandardInput.BaseStream, closeDestination: true);
+            var outputTask = ForwardAsync(process.StandardOutput.BaseStream, output, closeDestination: false);
+            var errorTask = ForwardAsync(process.StandardError.BaseStream, error, closeDestination: false);
 
             process.WaitForExit();
 

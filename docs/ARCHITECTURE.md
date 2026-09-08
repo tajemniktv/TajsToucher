@@ -44,17 +44,34 @@ The previous global Git program setting is stored alongside it. Uninstall is
 conditional: it restores the previous value only when the current value still
 identifies the installed wrapper.
 
+Git values are read with NUL delimiters and retained without trimming or
+discarding empty values. The backup limit is checked before changing Git.
+Wrapper ownership requires exactly one matching program value; dashboard and
+CLI diagnostics share that rule with the installer. Readiness also requires
+readable global configuration and an existing installed executable. It does
+not assert that repository overrides or non-OpenPGP signing use this wrapper.
+
 ## Operation detection and notification
 
-The classifier recognizes GnuPG's long signing options and short options used
-by Git, including `-bsau`. It stops interpreting arguments after `--` and
-gives explicit verification options precedence over signing options. Repository
+The classifier recognizes explicit signing, encryption, decryption, and
+combined sign/encrypt commands, including Git's `-bsau` form. It skips common
+value-taking options and stops interpreting arguments after `--`. Explicit
+verification and recognized key-management commands suppress observation.
+It does not parse option files or infer operations from input. Repository
 context is best-effort metadata from `git rev-parse --show-toplevel`; a failed
 lookup simply omits the repository name.
 
-Notification launching is fail-open and intentionally silent on failure. The
-helper is a short-lived native Win32 notification-area host and is launched
-with handle inheritance disabled, preventing it from keeping Git pipes open.
+Observation is fail-open and intentionally silent on failure. GPG's streams
+remain raw and its exit code is returned unchanged. `OperationObservation`
+emits typed request and optional outcome events to detached helpers, launched
+with handle inheritance disabled so they cannot keep Git pipes open.
+
+Optional cooldown is evaluated inside the detached helper, never in the GPG
+forwarding process. A per-user session mutex serializes a persisted timestamp
+under the Runtime registry subkey. It is global across repositories, disabled
+by default, and bypassed by explicit UI tests. Invalid state or clock rollback
+allows a new prompt. Sound uses the native notification flag rather than a
+separate audio process.
 
 The desktop shell is an unpackaged WinUI 3 application. XAML page backgrounds
 remain transparent and cards use alpha-backed brushes, leaving the DWM and
@@ -81,20 +98,67 @@ leaving the process and tray icon alive. The tray menu can navigate to each app
 page or explicitly exit the process. Shutdown/task-manager close reasons are
 not intercepted, so system lifecycle actions can still terminate the app.
 
-## Future adapter model
+## Operation events and outputs
 
-If the project grows, protocol-specific integration should live behind adapters that emit a small set of normalized events.
+`OperationEvent` carries only an operation ID, occurrence time, operation kind,
+phase, exit code, and wrapper elapsed time. `OperationEventCodec` validates the
+fixed private helper arguments, enum values, and outcome invariants. Repository
+context travels separately for notification display; it is not an event field.
 
-Examples:
+The OpenPGP observer launches one helper for a selected request and an optional
+second helper for diagnostic outcomes or enabled failures. No success helper
+is launched by default. Settings/context/helper failures cannot change GPG's
+operation. Requests are advisory: there is no inferred touch-required signal.
 
-```text
-Git adapter -----------\
-OpenPGP observer -------+--> event broker --> notification sinks
-SSH/FIDO observer ------+                 `--> policy/diagnostics
-PIV/OATH observer ------/
-```
+Inside the helper, `OperationEventBroker` isolates each `IOperationEventSink`:
 
-An adapter should expose metadata such as operation type, application/relying-party identifier, repository name, timeout state, or retry count. It should not expose secret payloads unless a future feature absolutely requires it.
+- `NotificationEventSink` applies per-operation notification policy, optional
+  failure alerts, and cooldown before using the existing native host.
+- `DiagnosticEventSink` optionally writes seven fixed metadata fields to two
+  bounded local files, rotating at 64 KiB. A path-scoped session mutex prevents
+  simultaneous writers from corrupting rotation. Contention and I/O failure
+  are nonfatal. Event timestamps and IDs, not write order, identify lifecycle.
+
+The sink interface is replaceable by code, not an external plugin loading
+system. The broker is in-process in short-lived helpers, not a daemon or
+general-purpose message transport. Settings only suppress notifications or
+enable diagnostics; they never authorize, deny, or modify cryptographic work.
+
+### Desktop device feature
+
+`TajsToucher.Devices` pins Yubico.YubiKey/Core 1.17.3 and the transitive
+NativeShims 1.17.2. Only an explicit Devices-page action (or `diagnose-devices`)
+constructs `YubiKeyService`. The GPG forwarding path does not load SDK assemblies.
+`DesktopDeviceFeature` owns the service and `DeviceEventBroker`; `App` awaits
+their disposal on explicit tray exit. Merely hiding the window leaves discovery
+running. Navigation cancels the page's own test and removes UI subscriptions.
+
+`IKeyDiscovery` separates listener/cache lifetime from inventory reconciliation.
+The SDK listener is subscribed once, presence refreshes debounce for 400 ms,
+and all enumeration/application sessions share a semaphore. Re-enumeration
+replaces stale handles. Serial numbers are used only in-memory for known-device
+identity; anonymous keys use reference identity, not SDK fingerprint equality.
+No application status refresh occurs automatically. Known-device removal can
+cancel only TajsToucher's own identify operation, never a guessed GPG operation.
+
+Read-only PIV/OATH/FIDO sessions refuse credential collection. HRESULTs preserve
+busy, removed, permission-denied and timeout categories. Unsupported and unknown
+values remain distinct from zero retries. FIDO selection uses an independently
+synchronized touch lifetime because SDK callbacks can outlive command return;
+Release clears callback state, not the operation outcome.
+
+`DeviceSignal` is separate from `OpenPgpOperation`. It carries random correlation
+and ephemeral device IDs, occurrence time, kind and outcome. Device identity is
+not written to logs. `DeviceEventBroker` consumes a bounded 64-entry queue,
+isolates notification/diagnostic failures and applies opt-in presence/retry
+rules. Native notices are dispatched to the existing resident tray, not a
+blocking helper loop. The existing rotating diagnostic writer is shared.
+The SDK's configurable console logger is disabled before discovery.
+
+There is no external plugin loader, automatic elevation, key configuration,
+credential enumeration or cross-process touch monitoring. SSH remains
+unimplemented pending askpass/authentication lifecycle proof. Key/PIN management
+and protocol interception remain deferred.
 
 ## Security boundary
 

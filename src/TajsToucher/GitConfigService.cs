@@ -15,23 +15,39 @@ internal sealed class GitConfigService
 
         var result = ProcessRunner.Run(
             git,
-            new[] { "config", "--global", "--get-all", OpenPgpProgramKey },
+            new[] { "config", "--global", "--null", "--get-all", OpenPgpProgramKey },
             null,
             TimeSpan.FromSeconds(3));
 
-        // Git returns non-zero when the key is absent. That is a valid empty
-        // configuration, but a timeout/start failure is not.
+        return TryParsePrograms(result, out programs);
+    }
+
+    internal static bool TryParsePrograms(ProcessResult result, out IReadOnlyList<string> programs)
+    {
+        programs = Array.Empty<string>();
         if (!result.Started || result.TimedOut)
         {
             return false;
         }
 
-        programs = result.StandardOutput
-            .Split(new[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
-            .Where(value => value.Length > 0)
-            .ToArray();
-        return result.ExitCode == 0 ||
-               (result.ExitCode == 1 && programs.Count == 0 && string.IsNullOrWhiteSpace(result.StandardError));
+        if (result.ExitCode == 1)
+        {
+            return result.StandardOutput.Length == 0 && string.IsNullOrWhiteSpace(result.StandardError);
+        }
+
+        if (result.ExitCode != 0 || !result.StandardOutput.EndsWith('\0'))
+        {
+            return false;
+        }
+
+        // Preserve empty values, whitespace, and embedded newlines for exact restoration.
+        programs = result.StandardOutput[..^1].Split('\0');
+        return true;
+    }
+
+    internal static bool IsWrapperConfiguration(IReadOnlyList<string> programs, string wrapperPath)
+    {
+        return programs.Count == 1 && ExecutableLocator.AreSamePath(programs[0], wrapperPath);
     }
 
     public bool TrySetGlobalProgram(string wrapperPath)

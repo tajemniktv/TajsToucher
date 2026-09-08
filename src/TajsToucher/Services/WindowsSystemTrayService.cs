@@ -94,6 +94,16 @@ internal sealed class WindowsSystemTrayService : IDisposable
         _ = Shell_NotifyIconW(NimSetVersion, ref version);
     }
 
+    public void ShowDeviceNotice(string message, bool playSound)
+    {
+        if (disposed || windowHandle == 0) return;
+        var data = CreateNotifyIconData(0x10); // NIF_INFO
+        data.InfoTitle = "TajsToucher · YubiKey SDK";
+        data.Info = message.Length > 255 ? message[..255] : message;
+        data.InfoFlags = 0x1u | (playSound ? 0 : 0x10u); // NIIF_INFO / NIIF_NOSOUND
+        _ = Shell_NotifyIconW(NimModify, ref data);
+    }
+
     public void Dispose()
     {
         if (disposed)
