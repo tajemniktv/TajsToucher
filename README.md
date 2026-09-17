@@ -57,7 +57,10 @@ and app references built by the test project do not deploy. `dotnet test` is tes
 Explicit SingleFile publishes also deploy; other publish profiles/output formats do not.
 An IDE's up-to-date check that skips MSBuild does not trigger deployment.
 
-Staging and test work live in `.codex/temp/dogfood`. SDK build/intermediate outputs use the
+Staging lives in `.codex/temp/dogfood`; isolated test runs also use sibling
+`.codex/temp/dogfood-test-*` and `dogfood-migration-*` directories. These diagnostic
+trees are retained for inspection and can be removed after their processes exit.
+SDK build/intermediate outputs use the
 central repo-level `artifacts/bin` and `artifacts/obj` layout; both `artifacts/` and `.codex/`
 are ignored. Existing old `bin/obj` folders are excluded from source globs, not deleted.
 `version` and executable ProductVersion include the Git commit and explicit `.clean`/`.dirty` state,
@@ -115,7 +118,8 @@ It requires working GnuPG for the harmless `--version` proxy probe. Its fixtures
 
 For an older flat LocalAppData install, publish with dogfooding disabled, then run
 `scripts/Migrate-DogfoodLayout.ps1 -StagePath <staged-SingleFile-folder>`. It blocks active GPG,
-stops the old tray gracefully, validates `current`, migrates Git only if the registry and Git
+stops protocol-aware old trays gracefully (exit pre-protocol trays manually first),
+validates `current`, migrates Git only if the registry and Git
 still own the old path, and preserves all other registry values including the uninstall backup.
 The old flat payload becomes `previous`; the former sibling `.TajsToucher-dogfood` is moved
 intact into `retained/legacy-dogfood` (its old `previous.txt` is archival metadata, not the active
@@ -230,15 +234,18 @@ controls live in a collapsed diagnostics section; unavailable SDK access does
 not hide the hardware cards or prevent signing prompts. USB card numbers are
 snapshot labels, not identities matched to SDK keys. The pinned Yubico SDK runs
 in a separate desktop-only assembly.
-An empty SDK inventory means no *accessible* key, not necessarily an unplugged
+A successful empty SDK discovery means no *accessible* key, not necessarily an unplugged
 key. GPG can own the smart-card interface while Windows denies direct FIDO
 access. Refresh retries a previously empty SDK cache without requiring a USB
 replug; it does not stop GPG, take over its card connection, or elevate the app.
 Retry after the other application releases the interface. Existing nonempty
 inventories retain their device identities and listeners.
+If discovery fails, SDK accessibility is unknown. The previous selector remains
+visible as stale, with diagnostic actions disabled until a successful refresh.
 The Devices page separately reports **Windows USB attachment** using present
 PnP device nodes, without opening a card or HID connection. This can detect an
-attached Yubico USB device even when the SDK cannot open it. Composite USB
+attached YubiKey or Security Key even when the SDK cannot open it. Known Yubico
+key product IDs are allowlisted; HSMs and unknown products are excluded. Composite USB
 interfaces are not counted as separate keys. Unknown OS presence stays unknown;
 this USB-only count is not NFC inventory or proof of a usable credential.
 GPG may retain exclusive card access after signing finishes, so refresh cannot

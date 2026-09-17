@@ -5,6 +5,7 @@ param(
     [switch]$Rollback,
     [string]$TestRoot,
     [switch]$SimulateStartupFailure,
+    [switch]$SimulateReadinessTimeout,
     [switch]$AllowLegacyLayout
 )
 $ErrorActionPreference = 'Stop'
@@ -28,20 +29,20 @@ if ($TestRoot) {
     if (!$TestRoot.StartsWith((Join-Path $repo '.codex\temp\'), [StringComparison]::OrdinalIgnoreCase)) { throw 'TestRoot must be inside the repository .codex\temp directory.' }
     $install = Join-Path $TestRoot 'TajsToucher'
 }
-if ($SimulateStartupFailure -and !$TestRoot) { throw 'Fault injection requires an isolated TestRoot.' }
+if (($SimulateStartupFailure -or $SimulateReadinessTimeout) -and !$TestRoot) { throw 'Fault injection requires an isolated TestRoot.' }
 $stateRoot = $install
 $install = Join-Path $stateRoot 'current'
 $exe = Join-Path $install 'TajsToucher.exe'
 $journal = Join-Path $stateRoot 'transaction.json'
 $previous = Join-Path $stateRoot 'previous'
 $retained = Join-Path $stateRoot 'retained'
-New-Item -ItemType Directory -Force -Path $work, $retained | Out-Null
 if ((Test-Path -LiteralPath (Join-Path $stateRoot 'TajsToucher.exe')) -and !$AllowLegacyLayout) {
     throw 'Legacy flat installation detected. Run scripts/Migrate-DogfoodLayout.ps1 before ordinary builds.'
 }
 if ((Test-Path -LiteralPath (Join-Path $stateRoot 'layout-migration.json')) -and !$AllowLegacyLayout) {
     throw 'An unfinished layout migration requires review before deployment.'
 }
+New-Item -ItemType Directory -Force -Path $work, $retained | Out-Null
 # Keep the lease's relative location compatible with older binaries when rolling back.
 $coordination = Join-Path $stateRoot '.TajsToucher-dogfood'
 New-Item -ItemType Directory -Force -Path $coordination | Out-Null
@@ -87,9 +88,17 @@ function Stop-Trays {
     $events = @()
     try {
         foreach ($process in $running) {
-            try { $events += [Threading.EventWaitHandle]::OpenExisting("Local\TajsToucher.Dogfood.Stop.$($process.ProcessId)") }
-            catch { throw "PID $($process.ProcessId) is busy or predates graceful updates. Exit the tray app and finish GPG operations, then rebuild." }
+            $deadline = [DateTime]::UtcNow.AddSeconds(15)
+            while ($true) {
+                try { $events += [Threading.EventWaitHandle]::OpenExisting("Local\TajsToucher.Dogfood.Stop.$($process.ProcessId)"); break }
+                catch [Threading.WaitHandleCannotBeOpenedException] {
+                    if (!(Get-Process -Id $process.ProcessId -ErrorAction SilentlyContinue)) { break }
+                    if ([DateTime]::UtcNow -ge $deadline) { throw "PID $($process.ProcessId) is busy or predates graceful updates. Exit the tray app and finish GPG operations, then rebuild." }
+                    Start-Sleep -Milliseconds 200
+                }
+            }
         }
+        $script:shutdownRequested = $events.Count -gt 0
         foreach ($event in $events) { $event.Set() | Out-Null }
         $deadline = [DateTime]::UtcNow.AddSeconds(15)
         while ((Get-AppProcesses).Count) {
@@ -100,6 +109,8 @@ function Stop-Trays {
 }
 function Start-Tray {
     $process = Start-Process -FilePath $exe -ArgumentList 'app' -WorkingDirectory $install -WindowStyle Hidden -PassThru
+    try {
+    if ($SimulateReadinessTimeout) { throw 'Simulated readiness timeout after launch.' }
     $deadline = [DateTime]::UtcNow.AddSeconds(60)
     while ([DateTime]::UtcNow -lt $deadline) {
         $process.Refresh()
@@ -117,6 +128,12 @@ function Start-Tray {
         Start-Sleep -Milliseconds 200
     }
     throw 'New tray did not report readiness within 60 seconds.'
+    } catch {
+        # Only the candidate we launched is ours to terminate. The deployment lease
+        # prevents signing through this executable during startup validation.
+        if (!$process.HasExited) { $process.Kill(); $process.WaitForExit() }
+        throw
+    } finally { $process.Dispose() }
 }
 function Set-Launcher {
     if ($TestRoot) { return }
@@ -167,8 +184,13 @@ try {
     $stagedExe = Join-Path $StagePath 'TajsToucher.exe'
     if (!(Test-Path -LiteralPath $stagedExe)) { throw 'Staged executable is missing.' }
     $probe = Start-Process -FilePath $stagedExe -ArgumentList 'version' -WindowStyle Hidden -PassThru
-    if (!$probe.WaitForExit(60000) -or $probe.ExitCode -ne 0) { throw 'Staged executable failed its launch probe; installation was not touched.' }
-    $probe.Dispose()
+    try {
+        if (!$probe.WaitForExit(60000)) {
+            $probe.Kill(); $probe.WaitForExit()
+            throw 'Staged executable launch probe timed out; installation was not touched.'
+        }
+        if ($probe.ExitCode -ne 0) { throw 'Staged executable failed its launch probe; installation was not touched.' }
+    } finally { $probe.Dispose() }
     $expectedHash = Get-PayloadHash $stagedExe
     # Durable candidate/rollback store shares the installed volume, even when the repo is on another drive.
     $candidate = Join-Path $stateRoot 'pending'
@@ -203,6 +225,7 @@ try {
     $promotedPrevious = $false
     $swapped = $false
     $stopped = $false
+    $script:shutdownRequested = $false
     try {
         Stop-Trays
         $stopped = $true
@@ -232,7 +255,7 @@ try {
         if ($promotedPrevious) { Move-ManagedDirectory $previous $install }
         elseif (Test-Path -LiteralPath $backup) { Move-ManagedDirectory $backup $install }
         if (Test-Path -LiteralPath $retiredPrevious) { Move-ManagedDirectory $retiredPrevious $previous }
-        if ($stopped -and $hadInstall -and (Test-Path -LiteralPath $exe)) {
+        if (($stopped -or $script:shutdownRequested) -and $hadInstall -and (Test-Path -LiteralPath $exe) -and !(Get-AppProcesses).Count) {
             # Legacy rollback builds do not have readiness events, but must still be restarted.
             Start-Process -FilePath $exe -ArgumentList 'app' -WorkingDirectory $install -WindowStyle Hidden | Out-Null
         }

@@ -7,5 +7,9 @@ if (!$StagePath) {
     & dotnet publish (Join-Path $repo 'src/TajsToucher/TajsToucher.csproj') -c Release -p:PublishProfile=SingleFile -p:DogfoodEnabled=false -p:Dogfood=false -o $StagePath
     if ($LASTEXITCODE -ne 0) { throw 'Isolated test publish failed.' }
 }
-& (Join-Path $repo 'scripts/Test-Dogfood.ps1') -StagePath $StagePath
-& (Join-Path $repo 'scripts/Test-DogfoodLayoutMigration.ps1') -StagePath $StagePath
+$failures = @()
+foreach ($test in @('Test-Dogfood.ps1', 'Test-DogfoodLayoutMigration.ps1')) {
+    try { & (Join-Path $repo "scripts/$test") -StagePath $StagePath }
+    catch { $failures += "${test}: $_"; Write-Warning $failures[-1] }
+}
+if ($failures.Count) { throw ($failures -join "`n") }
