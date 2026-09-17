@@ -27,7 +27,7 @@ Possible follow-ups after v0.1 is boringly reliable:
 
 - [x] configurable notification icon, title, and text through the settings GUI;
 - [x] WinUI 3 desktop app shell with a status dashboard, settings page, and enabled-adapters page;
-- [x] unified dashboard control surface for status, installation, personalization, testing, and enabled adapters;
+- [x] overview-only Home; installation/adapters under Enabled for, personalization/testing under Settings, and native lower-left Settings navigation;
 - [x] native tray-resident app shell with dashboard reopening and explicit exit;
 - [x] optional sound;
 - [x] notification cooldown/deduplication (opt-in, cross-repository, with test bypass);
@@ -197,6 +197,31 @@ The implementation pins **Yubico.YubiKey/Core 1.17.3** with transitive
 SDK-02–05 remain unchecked above until their hardware acceptance criteria pass.
 Automated state/callback tests do not substitute for those checks.
 
+**SDK-02 discovery follow-up — 2026-09-17:** reproduced an attached USB key
+hidden from SDK inventory, with PC/SC shared-connect returning
+`SCARD_E_SHARING_VIOLATION (0x8010000b)` while scdaemon remained running. This
+confirms incompatible reader ownership, not which process owns it. Retrying
+the SDK cache cannot release that connection. Devices now reports present
+Yubico USB devnodes independently of SDK handles, including when SDK discovery
+fails; metadata-only enumeration neither opens the card nor initiates HID I/O.
+Unknown OS presence is not zero, composite interfaces are excluded, and no
+fake SDK key or enabled operation is invented. No daemon restart, shared-mode
+configuration change, or elevation is performed. Physical access/coexistence
+acceptance remains open.
+Validation: 34 device tests passed, including OS-presence/SDK-denial separation,
+presence-provider failure and composite-interface deduplication. The published
+diagnostic reported one attached USB device and zero SDK-accessible keys in
+the still-blocked state, without replugging, and exited successfully.
+
+The Devices page now presents OS-detected hardware as connected cards and keeps
+SDK controls inside an optional diagnostics section. Opening the page refreshes
+inventory; missing SDK handles do not hide connected USB cards. No speculative
+USB-to-SDK identity mapping is performed. [GPG ownership research](gpg-card-ownership.md)
+confirms intentional cache retention and successful owner-mediated policy/retry
+reads while SDK access is blocked. Prefer an explicit bounded GPG diagnostics
+path next; automatic disconnects, daemon restarts and shared-mode changes remain
+unvalidated and are not enabled.
+
 **Observed validation:** Release tests pass **93/93**, including unchanged binary
 stream/argument/exit-code tests, fresh-process proxy SDK-isolation, anonymous-key
 identity, stale selection/removal, listener disposal, cancellation/late callbacks,
@@ -220,8 +245,157 @@ Without a connected security key and an authentication test target, that
 acceptance cannot be completed here. No askpass override, forced environment
 configuration, or transport proxy has been shipped.
 
-System-wide FIDO/PIV/OATH observation and all explicitly deferred features stay
-out of scope. Installer/updater work remains conditional on an actual need.
+System-wide FIDO/PIV/OATH observation remains unimplemented. The bounded touch
+research below is accepted for investigation, not a claim of support; unrelated
+deferred features remain out of scope. Installer/updater work remains conditional
+on an actual need.
+
+### Touch observation research — 2026-09-08
+
+#### Solution migration and resumed hardware acceptance — 2026-09-17
+
+The solution is now `TajsToucher.slnx`, migrated with the .NET 10 SDK while
+preserving all three project entries and the Any CPU/x64 configurations.
+README commands use the new filename; the old `.sln` was removed. The full
+Release suite passes **140/140** through the new solution. An ordinary Release
+solution build passes with zero warnings/errors and automatically publishes,
+deploys, and restarts the permanent daily app through the existing workflow.
+
+A user-coordinated signature through the installed wrapper completed in 15.1
+seconds with exit 0, `SIG_CREATED`, and a signature output file. This validates
+the successful-signing path after duplicate-notice suppression. The user
+confirmed one notice (no duplicate), reported probable dismissal after touch,
+and observed noticeable delay after blinking began. Dismissal remains tentative;
+latency remains an open UX issue. The current floor is 500 ms startup grace plus
+600 ms busy threshold, then process/shell presentation latency. It does not close
+TOUCH-01/04's PIN-wait, contention, cancellation, or multi-card acceptance.
+
+The subsequent instructed no-touch run returned GPG `Timeout`, exit 2, and no
+`SIG_CREATED` after 19.8 seconds. The user saw a probable operation-failed
+balloon but could not inspect it afterward; this does not establish wait-notice
+cleanup. Failure is an operation outcome, not evidence that a touch occurred.
+
+**TOUCH-04 presentation follow-up:** replaced the suspected-wait balloon with
+a compact topmost TajsToucher WinUI card, still opt-in and explicitly
+labelled "Key may be waiting for touch". Dismiss/Escape dismisses only the window;
+the requesting application owns signing cancellation. The existing wait-ended
+event closes the dialog, with a 30-second independent safety bound. It requests
+no PIN and is not Windows Security. Ordinary request/failure balloons remain
+unchanged and are not notification-history entries. The heuristic's 500/600 ms
+delays remain; removing balloon presentation does not prove lower detection
+latency. Published synthetic-event checks pass for already-ended suppression,
+topmost display, wait-ended cleanup, dismissal without signalling the operation,
+and expiry (`scripts/Test-TouchWaitWindow.ps1`). The user rejected the initial
+classic task-dialog styling and approved the replacement compact WinUI card
+with key icon, semantic theme brushes, short text and Dismiss action. WinUI
+starts only in the detached helper; this mode bypasses dashboard/tray/device
+initialization. Real signing with the card remains distinct from this approved
+synthetic-wait preview. Light/high-contrast and multi-DPI visual acceptance have
+not been claimed.
+
+#### Unattended follow-up — 2026-09-17
+
+- **TOUCH-01/04 lifecycle validation advanced:** six observer tests pass,
+  including the actual 30-second hung-probe limit, notification-sink failure,
+  missing probe executable, signing-end cancellation, fast completion, and
+  configuration exclusions. These prove bounded cleanup paths, not accurate
+  attribution of busy time to touch. Physical false-positive/coexistence cases
+  remain open; no new signing or PIN operation was started in this follow-up.
+- **TOUCH-03 direct HID preflight executed:** the standalone
+  [`FidoReadAccessProbe`](../tools/FidoReadAccessProbe/README.md) found one Yubico
+  FIDO collection on Windows 10.0.26220.0, but a shared `GENERIC_READ` handle
+  failed with `ERROR_ACCESS_DENIED (5)` under the unelevated account. No reports
+  were read/written, authentication initiated, or elevation attempted. The
+  unelevated direct-HID route is blocked on this configuration, not declared
+  universally impossible. Independent report delivery remains untested.
+- **ETW fallback metadata assessed:** installed HIDCLASS schemas expose a
+  report descriptor, not input-report bytes; USBXHCI exposes command/event TRBs,
+  not an established CTAPHID payload stream; UCX has no top-level binary data
+  fields in the inspected manifest. WebAuthN has no explicitly named
+  keepalive/user-presence/touch event in the inspected schemas. Provider
+  availability is not proof of a usable signal. No raw trace was captured.
+- **Next gates:** obtain usable CCID decoding metadata (TOUCH-02), or validate
+  a concrete alternative transport event before implementing another observer.
+  Hardware acceptance still needs coordinated touch/timeout/cancel/PIN-wait
+  and competing-client tests. Do not install filter drivers or elevate the
+  resident app to turn an inconclusive result into a supported feature.
+
+No TOUCH milestone is marked complete by these results. The research tool is
+not shipped in the daily app; this follow-up contains test/documentation/tool
+changes only and does not restart the installed app.
+
+Original status (2026-09-08): source-validated research plan only.
+Update 2026-09-17: an experimental opt-in wrapper-scoped busy indicator is now
+implemented using `SCD GETATTR UIF-1`, not LEARN. A physical no-touch timeout and
+isolated touch-success were observed after the user enabled signing touch On.
+One isolated policy probe tracked the pending signature; this is not confirmed
+touch detection. CCID captures contain events but public symbols did not decode
+them. Full
+TOUCH-01/02/04 acceptance remains open. See the dated feasibility update for
+timings, limitations, and remaining hardware coverage.
+The high-level API limitation does not rule out lower-layer observation.
+See [feasibility evidence and corrections](touch-monitoring-feasibility.md) for
+the GnuPG discussion, Windows tracing/HID documentation, FIDO specification,
+and pinned Linux detector source. All milestones remain unchecked.
+
+- [ ] **TOUCH-01 — Correlated GPG busy-check prototype.** First evaluate a
+  bounded, opt-in probe triggered by the existing wrapper, labelled
+  `TouchWaitSuspected` / `ScdaemonBusy`, never confirmed touch. Do not copy
+  `LEARN` blindly: it performs card work and can create local shadow-key files.
+  Choose and validate a probe with acceptable side effects before integration;
+  if none exists, record no-go rather than silently changing user state.
+  Cover PIN waiting, software keys, cached/no-touch policies, concurrent GPG
+  operations, multiple cards, no device, daemon failure, and slow unrelated I/O.
+  Acceptance: measure false positives/latency against user-observed waits,
+  demonstrate unchanged configuration/key files and proxy bytes/exit status,
+  and prove bounded worker lifetime with no delayed signing completion. No
+  continuous polling or cancellation of the user's daemon/operation.
+
+- [ ] **TOUCH-02 — Passive Windows CCID ETW/WPP experiment.** Preferred
+  transport-level OpenPGP experiment; not dependent on shipping TOUCH-01.
+  Verify actual driver/provider path, elevation needs, usable WPP decoding
+  metadata, and which response fields are emitted. During user-coordinated
+  signing with non-sensitive test data, correlate command/wait/end timing and
+  distinguish generic time extensions from the special `0xff` convention.
+  Generic time extension remains suspected. Accept `CcidUserPrompt` only after
+  evidence on the exact device/firmware/driver demonstrates that meaning.
+  Test touch, no-touch timeout, cancellation, unplug, cached/no-touch operation,
+  unrelated card activity, and concurrent devices. Record lost events and
+  unsupported builds as unknown, not success. No driver installation or service
+  restart. Use a uniquely owned, bounded trace session and stop only that session.
+  Raw traces may contain sensitive APDU data: restrict capture scope, keep files
+  under `.codex/temp`, do not upload them, and retain only redacted metadata in
+  product diagnostics. Missing payload/decoding is a valid no-go result.
+
+- [ ] **TOUCH-03 — Passive Windows FIDO HID experiment.** Test a shared,
+  read-only collection handle with no CTAPHID writes, INIT, CANCEL, channel
+  allocation, or synthetic authentication. Prove independent report delivery
+  and no interference with real Windows WebAuthn and OpenSSH operations;
+  an accessible handle alone does not pass. Validate report IDs, frame lengths,
+  initialization/continuation framing, device/channel identity and removal.
+  Only a valid `CTAPHID_KEEPALIVE / STATUS_UPNEEDED` confirms user-presence
+  waiting. Processing, lost reports, silence, disconnect, and end-of-wait do not
+  prove a touch. Scope state per device/channel; do not infer a browser/process
+  or wrapper operation from timing alone. Cover cancel/timeout/unplug and
+  multiple channels/devices. If blocked, assess HID/USB ETW payload availability
+  separately; no automatic escalation to USBPcap or filter drivers.
+
+- [ ] **TOUCH-04 — Integrate only validated observers.** Introduce a narrow,
+  typed observation lifecycle when a preceding prototype passes, preserving
+  the existing SDK-owned touch events. Separate suspected/confirmed waiting,
+  source, known correlation, and wait-ended/unknown from the operation owner's
+  success/failure. Signal loss must expire stale prompts without claiming touch
+  satisfaction. Define bounded delivery and helper/desktop shutdown explicitly;
+  the SDK queue is not a cross-process operation broker. Default new observers
+  off, expose capability/permission failures, preserve existing notification and
+  Git settings, and keep signing fail-open. Acceptance includes sink failures,
+  observer crashes, backpressure/lost terminal events, published-runtime
+  coexistence, privacy, and user-visible hardware checks. Build/parser tests
+  alone cannot mark these milestones complete.
+
+USBPcap/filter drivers and API hooks remain deferred, requiring a separate
+scope decision rather than being installed as fallback. Literal LED querying,
+background Identify, and synthetic signing as monitoring mechanisms are excluded.
 
 ## Explicitly deferred
 

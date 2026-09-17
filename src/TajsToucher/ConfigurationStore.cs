@@ -65,6 +65,7 @@ internal sealed class ConfigurationStore(string registryPath = "Software\\TajsTo
                 NotifyOnEncryption = key.GetValue("NotifyOnEncryption") is int encryption && encryption != 0,
                 NotifyOnDecryption = key.GetValue("NotifyOnDecryption") is int decryption && decryption != 0,
                 NotifyOnFailure = key.GetValue("NotifyOnFailure") is int failure && failure != 0,
+                ObserveSigningTouchWait = key.GetValue("ObserveSigningTouchWait") is int touchWait && touchWait != 0,
                 RecordDiagnostics = key.GetValue("RecordDiagnostics") is int diagnostics && diagnostics != 0,
                 NotifyOnDevicePresence = key.GetValue("NotifyOnDevicePresence") is int presence && presence != 0,
                 NotifyOnLowRetries = key.GetValue("NotifyOnLowRetries") is int retries && retries != 0,
@@ -86,6 +87,7 @@ internal sealed class ConfigurationStore(string registryPath = "Software\\TajsTo
         key.SetValue("NotifyOnEncryption", normalized.NotifyOnEncryption ? 1 : 0, RegistryValueKind.DWord);
         key.SetValue("NotifyOnDecryption", normalized.NotifyOnDecryption ? 1 : 0, RegistryValueKind.DWord);
         key.SetValue("NotifyOnFailure", normalized.NotifyOnFailure ? 1 : 0, RegistryValueKind.DWord);
+        key.SetValue("ObserveSigningTouchWait", normalized.ObserveSigningTouchWait ? 1 : 0, RegistryValueKind.DWord);
         key.SetValue("RecordDiagnostics", normalized.RecordDiagnostics ? 1 : 0, RegistryValueKind.DWord);
         key.SetValue("NotifyOnDevicePresence", normalized.NotifyOnDevicePresence ? 1 : 0, RegistryValueKind.DWord);
         key.SetValue("NotifyOnLowRetries", normalized.NotifyOnLowRetries ? 1 : 0, RegistryValueKind.DWord);

@@ -9,7 +9,7 @@
     <Grid Background="{ThemeResource ApplicationPageBackgroundThemeBrush}">
         <NavigationView x:Name="AppNavigation"
                         IsBackButtonVisible="Collapsed"
-                        IsSettingsVisible="False"
+                        IsSettingsVisible="True"
                         IsPaneToggleButtonVisible="False"
                         PaneDisplayMode="Left"
                         OpenPaneLength="248"
@@ -28,7 +28,6 @@
             </NavigationView.PaneHeader>
             <NavigationView.MenuItems>
                 <NavigationViewItem Content="Home" Tag="Home" Icon="Home" IsSelected="True" />
-                <NavigationViewItem Content="Settings" Tag="Settings" Icon="Setting" />
                 <NavigationViewItem Content="Enabled for" Tag="EnabledFor" Icon="Permissions" />
                 <NavigationViewItem Content="Devices" Tag="Devices" Icon="AllApps" />
             </NavigationView.MenuItems>

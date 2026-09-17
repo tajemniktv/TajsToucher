@@ -40,7 +40,7 @@ public sealed class ReviewRegressionTests
         StringAssert.Contains(report, "Partial report");
         StringAssert.Contains(report, "No configuration was changed");
         StringAssert.Contains(report, "Access denied");
-        using var source = typeof(ReviewRegressionTests).Assembly.GetManifestResourceStream("HomePage.xaml")!;
+        using var source = typeof(ReviewRegressionTests).Assembly.GetManifestResourceStream("EnabledForPage.xaml")!;
         var button = XDocument.Load(source).Descendants().Single(e => (string?)e.Attribute("Content") == "Diagnose setup");
         Assert.AreEqual("Diagnose_Click", (string?)button.Attribute("Click"));
         Assert.IsNull(button.Attribute("Visibility"));

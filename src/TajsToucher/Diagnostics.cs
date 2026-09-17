@@ -31,6 +31,7 @@ internal static class Diagnostics
         output.WriteLine($"Global Git configuration readable: {(status.GitConfigurationReadable ? "yes" : "no")}");
         output.WriteLine($"Global gpg.openpgp.program matches installation: {(status.GitConfigurationMatches ? "yes" : "no")}");
         output.WriteLine($"Status: {status.Summary}");
+        output.WriteLine(status.ComparisonDetails);
 
         output.WriteLine("Signing detection: ready");
         output.WriteLine("Notification: fail-open");

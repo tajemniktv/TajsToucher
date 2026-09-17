@@ -25,6 +25,7 @@ public sealed class ConfigurationStoreTests
         {
             NotifyOnSigning = false, NotifyOnEncryption = true, NotifyOnDecryption = true,
             NotifyOnFailure = true, RecordDiagnostics = true,
+            ObserveSigningTouchWait = true,
             NotifyOnDevicePresence = true, NotifyOnLowRetries = true,
         };
         store.SaveNotificationSettings(settings);

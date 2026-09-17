@@ -9,6 +9,20 @@ internal sealed record AppStatus(
     public bool WrapperAvailable { get; init; }
     public bool GitConfigurationReadable { get; init; }
     public bool StatusReadFailed { get; init; }
+    public string? SavedWrapperPath { get; init; }
+    public string? RunningWrapperPath { get; init; }
+    public string? GitExecutablePath { get; init; }
+    public IReadOnlyList<string> GitPrograms { get; init; } = Array.Empty<string>();
+    // Quote values so empty strings, whitespace and embedded newlines remain distinguishable.
+    private static string DescribePath(string? value) => value is null ? "<unavailable>" : System.Text.Json.JsonSerializer.Serialize(value);
+    public string ComparisonDetails => string.Join(Environment.NewLine,
+        $"Expected (HKCU\\Software\\TajsToucher\\WrapperPath): {DescribePath(SavedWrapperPath)}",
+        $"Running executable: {DescribePath(RunningWrapperPath)}",
+        $"Git executable queried: {DescribePath(GitExecutablePath)}",
+        !GitConfigurationReadable ? "Actual global gpg.openpgp.program: <could not read; not a confirmed mismatch>"
+            : GitPrograms.Count == 0 ? "Actual global gpg.openpgp.program: <not set>"
+            : $"Actual global gpg.openpgp.program ({GitPrograms.Count} value(s)):" + Environment.NewLine +
+              string.Join(Environment.NewLine, GitPrograms.Select((value, index) => $"  [{index + 1}] {DescribePath(value)}")));
     public bool IsReady => !StatusReadFailed && IsInstalled && GitConfigurationReadable && GitConfigurationMatches && WrapperAvailable && RealGpgAvailable;
     public string SigningValue => StatusReadFailed || !GitConfigurationReadable ? "Unknown" : IsReady ? "Enabled" : "Not enabled";
     public string SigningDetail => StatusReadFailed ? "Setup status could not be read; run diagnose before changing configuration."
@@ -52,6 +66,10 @@ internal sealed record AppStatus(
         {
             WrapperAvailable = installation is not null && File.Exists(installation.WrapperPath),
             GitConfigurationReadable = readable,
+            SavedWrapperPath = installation?.WrapperPath,
+            RunningWrapperPath = processPath,
+            GitExecutablePath = ExecutableLocator.FindGit(),
+            GitPrograms = programs.ToArray(),
         };
     }
 }

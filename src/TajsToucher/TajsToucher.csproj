@@ -19,6 +19,7 @@
     <RootNamespace>TajsToucher</RootNamespace>
     <AssemblyName>TajsToucher</AssemblyName>
     <ApplicationManifest>app.manifest</ApplicationManifest>
+    <ApplicationIcon>Assets\TajsToucher.ico</ApplicationIcon>
     <GenerateAssemblyInfo>true</GenerateAssemblyInfo>
     <AssemblyTitle>TajsToucher</AssemblyTitle>
     <AssemblyDescription>Fail-open Windows notifications for Git OpenPGP signing</AssemblyDescription>
@@ -27,6 +28,7 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <EmbeddedResource Include="Assets/TajsToucher.ico" LogicalName="TajsToucher.AppIcon.ico" />
     <PackageReference Include="Microsoft.WindowsAppSDK" Version="2.4.0" />
     <PackageReference Include="System.Drawing.Common" Version="10.0.11" />
     <!-- The test-reference marker belongs only to the app. Keep normal user/global

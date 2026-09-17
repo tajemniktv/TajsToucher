@@ -171,11 +171,11 @@ restores the previous value only if Git still points at the same wrapper; it
 will not overwrite a setting changed by the user in the meantime.
 
 Launching the executable without arguments opens the WinUI 3 TajsToucher app.
-The Home dashboard is the primary control surface: it shows whether Git signing
-is connected, whether the real GnuPG executable is available, exposes install,
-uninstall, and test-notification actions, embeds notification personalization,
-and lists the enabled adapters. The separate **Settings** and **Enabled for**
-pages are navigation shortcuts to the same capabilities. Settings include the
+Home shows an overview of Git signing readiness and GnuPG availability.
+**Enabled for** owns integration details, install/uninstall, and setup diagnostics.
+**Settings**, in the navigation pane's built-in lower-left entry, owns notification
+personalization and the test-notification action. **Devices** owns device diagnostics.
+Settings include the
 notification title, notification text, and an optional `.ico` file. Use
 `{Repository}` in either field to insert the current repository name. If the
 text does not contain that token, the repository name is appended automatically
@@ -284,9 +284,8 @@ remains gated on a separately validated askpass lifecycle.
 Closing the app window hides TajsToucher to the system tray instead of stopping
 it. Double-click the tray icon, or use its menu, to reopen the dashboard,
 Settings, or Enabled for. **Exit TajsToucher** in that menu terminates the app.
-The dashboard follows Windows' native light/dark/high-contrast theme. Home's
-embedded settings and integration information share its outer scroll surface;
-the standalone pages keep their own scrolling.
+The dashboard follows Windows' native light/dark/high-contrast theme.
+Each page owns its content and scrolling; Home does not embed other pages.
 
 `settings` opens the same app directly on the Settings screen. `app` opens the
 Home screen explicitly.
@@ -352,6 +351,27 @@ accent colorization for that process. This is preferable to a global exclusion
 when the mod's **New system colors** option is enabled.
 
 ## Possible future direction
+
+### Experimental signing touch-wait indicator
+
+Settings includes an opt-in **Experimental signing touch-wait indicator**.
+With signing notices enabled, this replaces the initial signing request notice
+when the observer starts. One read-only GnuPG policy query is made during
+each eligible wrapped signature. A slow response shows **Key may be waiting
+for touch** in a compact topmost WinUI card rather than a balloon, with a key
+icon and Windows light/dark/high-contrast theme resources.
+The window closes when the query or signing ends, or after a 30-second safety
+limit. **Dismiss** (or Escape) only dismisses the prompt; cancel the signing
+operation in the requesting application. It does not confirm that a touch
+occurred and never requests a PIN. It is not a Windows Security dialog.
+Ordinary request/failure notices remain tray balloons, not notification-history
+entries. This window avoids balloon queuing but retains the heuristic delay.
+
+This is a busy heuristic, not LED monitoring or proof of touch: PIN prompts,
+other card operations, and slow responses can trigger it, and a single early
+query can miss a later wait. Custom `--homedir`/`--options` invocations are
+skipped. It does not change key policy, import keys, or change signing results.
+See [the evidence and remaining limitations](docs/touch-monitoring-feasibility.md).
 
 TajsToucher may eventually grow into a general hardware-key event and policy layer. The architectural direction should prefer adapters and metadata over becoming a cryptographic middleman.
 
