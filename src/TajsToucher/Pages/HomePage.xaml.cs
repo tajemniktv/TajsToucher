@@ -6,6 +6,7 @@ namespace TajsToucher.Pages;
 
 public sealed partial class HomePage : Page
 {
+    private bool refreshing;
     public HomePage()
     {
         InitializeComponent();
@@ -14,17 +15,20 @@ public sealed partial class HomePage : Page
 
     public event Action<AppPage>? NavigateRequested;
 
-    internal void RefreshStatus()
+    internal async void RefreshStatus()
     {
+        if (refreshing) return;
+        refreshing = true;
         AppStatus status;
         try
         {
-            status = AppStatus.Load();
+            status = await Task.Run(AppStatus.Load);
         }
-        catch (Exception exception) when (exception is IOException or InvalidOperationException or UnauthorizedAccessException)
+        catch (Exception)
         {
             status = new AppStatus(false, false, false, null) { StatusReadFailed = true };
         }
+        finally { refreshing = false; }
 
         StatusDot.Foreground = status.IsReady ? (Microsoft.UI.Xaml.Media.Brush)Application.Current.Resources["SystemFillColorSuccessBrush"] : (Microsoft.UI.Xaml.Media.Brush)Application.Current.Resources["SystemFillColorCautionBrush"];
         StatusTitle.Text = status.IsReady ? "Global OpenPGP wrapper ready" : "Needs attention";

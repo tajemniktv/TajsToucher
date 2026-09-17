@@ -23,9 +23,8 @@ foreach ($mode in 'AlreadyEnded', 'WaitEnded', 'Dismiss', 'Expiry') {
         $start = [Diagnostics.ProcessStartInfo]::new($Executable)
         $start.UseShellExecute = $false
         $start.CreateNoWindow = $true
-        $start.Environment['TAJSTOUCHER_PRIVATE_HELPER'] = 'touch-wait-v1'
-        $start.ArgumentList.Add('--touch-wait')
-        $start.ArgumentList.Add($name)
+        $start.EnvironmentVariables['TAJSTOUCHER_PRIVATE_HELPER'] = 'touch-wait-v1'
+        $start.Arguments = '--touch-wait ' + $name # Generated name contains no spaces or quotes.
         $process = [Diagnostics.Process]::Start($start)
         if ($mode -ne 'AlreadyEnded') {
             $deadline = [DateTime]::UtcNow.AddSeconds(10)
@@ -40,7 +39,7 @@ foreach ($mode in 'AlreadyEnded', 'WaitEnded', 'Dismiss', 'Expiry') {
             } while (!$process.HasExited -and !$ready -and [DateTime]::UtcNow -lt $deadline)
             if ($process.HasExited -or $process.MainWindowHandle -eq 0) { throw "$mode did not create a visible window (check the opt-in setting)." }
             $style = [TouchWindowProbeNative]::GetWindowLongPtr($process.MainWindowHandle, -20).ToInt64()
-            if (!$ready -or ($style -band 8) -eq 0) { throw "$mode window was not topmost." }
+            if (!$ready -or ($style -band 8) -eq 0) { throw "$mode window was not topmost (title='$($process.MainWindowTitle)', style=$style, ready=$ready)." }
             if ($mode -eq 'WaitEnded') {
                 Start-Sleep -Seconds 2
                 [void]$ended.Set()

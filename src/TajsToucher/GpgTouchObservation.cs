@@ -8,17 +8,22 @@ internal sealed class GpgTouchObservation : IDisposable
     private readonly string eventName = "Local\\TajsToucher.TouchWait." + Guid.NewGuid().ToString("N");
     private readonly EventWaitHandle ended;
     private readonly Task worker;
-    private readonly Action<string> publish;
+    private readonly Func<string, bool> publish;
+    private readonly Action unavailable;
+    private readonly TimeSpan maximumWait;
+    private readonly Action<Process>? probeStarted;
     private int disposed;
+    private int unavailableReported;
     internal Task Completion => worker;
 
-    internal GpgTouchObservation(string agent, Action<string>? publish = null)
+    internal GpgTouchObservation(string agent, Func<string, bool>? publish = null, Action? unavailable = null,
+        TimeSpan? maximumWait = null, Action<Process>? probeStarted = null)
     {
-        this.publish = publish ?? (name =>
-        {
-            if (Environment.ProcessPath is { } executable)
-                DetachedProcessLauncher.TryLaunch(executable, ["--touch-wait", name], HelperDispatch.TouchWait);
-        });
+        this.publish = publish ?? (name => Environment.ProcessPath is { } executable &&
+            DetachedProcessLauncher.TryLaunch(executable, ["--touch-wait", name], HelperDispatch.TouchWait));
+        this.unavailable = unavailable ?? (() => { });
+        this.maximumWait = maximumWait ?? TimeSpan.FromSeconds(30);
+        this.probeStarted = probeStarted;
         ended = new EventWaitHandle(false, EventResetMode.ManualReset, eventName);
         worker = Task.Run(() => ObserveAsync(agent));
     }
@@ -30,14 +35,14 @@ internal sealed class GpgTouchObservation : IDisposable
                        a.StartsWith("--options", StringComparison.Ordinal) ||
                        a == "--no-options");
 
-    internal static GpgTouchObservation? TryStart(string gpg, IReadOnlyList<string> args)
+    internal static GpgTouchObservation? TryStart(string gpg, IReadOnlyList<string> args, Action? unavailable = null)
     {
         try
         {
             var settings = new ConfigurationStore().LoadNotificationSettings();
             if (!settings.ObserveSigningTouchWait || !settings.NotifyOnSigning || !IsEligible(args)) return null;
             var agent = Path.Combine(Path.GetDirectoryName(gpg)!, "gpg-connect-agent.exe");
-            return File.Exists(agent) ? new GpgTouchObservation(agent) : null;
+            return File.Exists(agent) ? new GpgTouchObservation(agent, unavailable: unavailable) : null;
         }
         catch { return null; } // Optional observation never owns signing.
     }
@@ -57,26 +62,33 @@ internal sealed class GpgTouchObservation : IDisposable
             start.ArgumentList.Add("SCD GETATTR UIF-1");
             start.ArgumentList.Add("/bye");
             using var process = Process.Start(start);
-            if (process is null) return;
+            if (process is null) { ReportUnavailable(); return; }
             process.StandardInput.Close();
             using var cancel = stopping.Token.Register(() =>
             {
                 try { if (!process.HasExited) process.Kill(); } catch { }
             });
+            probeStarted?.Invoke(process);
             // Drain without retaining identifiers or protocol output.
             var output = process.StandardOutput.BaseStream.CopyToAsync(Stream.Null);
             var error = process.StandardError.BaseStream.CopyToAsync(Stream.Null);
             var completion = process.WaitForExitAsync();
             using var lifetime = CancellationTokenSource.CreateLinkedTokenSource(stopping.Token);
-            lifetime.CancelAfter(TimeSpan.FromSeconds(30));
+            lifetime.CancelAfter(maximumWait);
+            var promptPublished = false;
             try
             {
                 if (await Task.WhenAny(completion, Task.Delay(600, lifetime.Token)).ConfigureAwait(false) != completion)
                 {
                     lifetime.Token.ThrowIfCancellationRequested();
-                    if (!completion.IsCompleted) publish(eventName);
+                    if (!completion.IsCompleted)
+                    {
+                        promptPublished = publish(eventName);
+                        if (!promptPublished) ReportUnavailable();
+                    }
                 }
                 await completion.WaitAsync(lifetime.Token).ConfigureAwait(false);
+                if (!promptPublished && process.ExitCode != 0) ReportUnavailable();
             }
             finally
             {
@@ -85,8 +97,15 @@ internal sealed class GpgTouchObservation : IDisposable
             }
             await Task.WhenAll(output, error).ConfigureAwait(false);
         }
-        catch { /* Probe denial, timeout and cancellation mean unknown, never failed signing. */ }
+        catch (OperationCanceledException) { /* Ending the observation is not failure. */ }
+        catch { ReportUnavailable(); }
         finally { ended.Set(); }
+    }
+
+    private void ReportUnavailable()
+    {
+        if (stopping.IsCancellationRequested || Interlocked.Exchange(ref unavailableReported, 1) != 0) return;
+        try { unavailable(); } catch { /* Optional fallback must not affect signing. */ }
     }
 
     public void Dispose()

@@ -20,6 +20,7 @@ public sealed partial class DevicesPage : Page
     private CancellationTokenSource? testCancellation;
     private bool busy;
     private bool active;
+    private bool inventoryReady;
 
     public DevicesPage()
     {
@@ -88,10 +89,12 @@ public sealed partial class DevicesPage : Page
     private void OnInventory(InventoryResult result) => DispatcherQueue.TryEnqueue(() =>
     {
         if (!active) return;
+        inventoryReady = result.Outcome == DeviceOutcome.Ready;
+        var accessibility = inventoryReady ? result.Keys.Count.ToString() : "unknown (refresh failed)";
         presence.Text = result.AttachedUsbDevices switch
         {
-            > 0 => $"Windows detects {result.AttachedUsbDevices} attached Yubico USB device(s). SDK-accessible keys: {result.Keys.Count}.",
-            0 => $"Windows detects no attached Yubico USB devices. SDK-accessible keys (including other transports): {result.Keys.Count}.",
+            > 0 => $"Windows detects {result.AttachedUsbDevices} attached Yubico USB key(s). SDK-accessible keys: {accessibility}.",
+            0 => $"Windows detects no attached Yubico USB keys. SDK-accessible keys (including other transports): {accessibility}.",
             _ => "Windows USB presence is unavailable; this does not mean the key is disconnected.",
         };
         attachedKeys.Children.Clear();
@@ -103,25 +106,32 @@ public sealed partial class DevicesPage : Page
                 Message = "Detected by Windows. This does not depend on SDK access.",
             });
         // These are OS presence cards, not SDK handles or inferred matches to keys.
+        if (!inventoryReady)
+        {
+            inventory.Text = $"Discovery: {result.Outcome}. Any previous selection is stale; current SDK accessibility is unknown. Refresh after the other application releases the interface.";
+            ShowSelection();
+            return;
+        }
         selector.Visibility = actions.Visibility = result.Keys.Count == 0 ? Visibility.Collapsed : Visibility.Visible;
         var selectedId = (selector.SelectedItem as ConnectedKey)?.Id;
         selector.ItemsSource = result.Keys;
         selector.SelectedItem = result.Keys.FirstOrDefault(key => key.Id == selectedId);
         if (selector.SelectedItem is null && result.Keys.Count == 1) selector.SelectedIndex = 0;
-        if (result.Outcome != DeviceOutcome.Ready) inventory.Text = $"Discovery: {result.Outcome}. Retry discovery; this is not proof no key is attached.";
-        else if (result.Keys.Count == 0) inventory.Text = result.AttachedUsbDevices > 0
+        if (result.Keys.Count == 0) inventory.Text = result.AttachedUsbDevices > 0
             ? "Diagnostics currently unavailable. GPG may retain the smart-card connection between signatures; Windows may also restrict FIDO access. Your connected hardware remains shown above. Signing is unaffected—no replug is required for normal use."
-            : "No SDK-accessible key for diagnostics. Connect a key and refresh, or check the USB presence status above. Signing notifications operate independently.";
+            : result.AttachedUsbDevices is null
+                ? "USB presence is unknown and no SDK key is accessible. Retry after the other application releases the interface; this does not prove the key is disconnected."
+                : "No SDK-accessible key for diagnostics. Connect a key and refresh. Signing notifications operate independently.";
         else if (selector.SelectedItem is null) inventory.Text = "Select a key explicitly. Labels are local to this discovery session; no serial numbers are logged.";
         ShowSelection();
     });
 
     private void ShowSelection()
     {
-        if (selector.SelectedItem is ConnectedKey key)
+        if (inventoryReady && selector.SelectedItem is ConnectedKey key)
             inventory.Text = $"Firmware: {key.Firmware}\nUSB available: {key.UsbAvailable}\nUSB enabled: {key.UsbEnabled}\nNFC available: {key.NfcAvailable}\nNFC enabled: {key.NfcEnabled}";
-        read.IsEnabled = !busy && selector.SelectedItem is ConnectedKey;
-        identify.IsEnabled = !busy && selector.SelectedItem is ConnectedKey { CanIdentify: true };
+        read.IsEnabled = !busy && inventoryReady && selector.SelectedItem is ConnectedKey;
+        identify.IsEnabled = !busy && inventoryReady && selector.SelectedItem is ConnectedKey { CanIdentify: true };
     }
 
     private async void ReadStatus(object sender, RoutedEventArgs args)

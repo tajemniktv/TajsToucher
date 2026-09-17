@@ -46,8 +46,11 @@ kills only its own probe client, and does not wait for cleanup on Git's path.
 It never runs LEARN, signs, requests a PIN itself, changes policy, or starts an
 agent deliberately (`--no-autostart`). Custom `--homedir`/`--options` invocations
 are skipped. An active observer replaces the initial request notification;
-request diagnostics and failure alerts are preserved. Skipped/unavailable
-observers retain the ordinary request notice.
+request diagnostics and failure alerts are preserved. Suppressed request diagnostics
+are deferred until fallback or operation completion, retaining the original request
+timestamp and correlation ID without recording the request twice. Skipped/unavailable
+observers retain the ordinary request notice; probe-start and helper-launch failures
+restore it once while the signing operation remains active.
 
 Limitations: PIN waits/other card users/slow startup can produce false positives;
 a single early probe can miss a later touch wait; it does not identify the

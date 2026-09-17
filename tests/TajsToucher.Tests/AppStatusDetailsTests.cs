@@ -30,5 +30,7 @@ public sealed class AppStatusDetailsTests
         StringAssert.Contains(status.ComparisonDetails, "could not read; not a confirmed mismatch");
         StringAssert.Contains((status with { GitConfigurationReadable = true }).ComparisonDetails, "<not set>");
         StringAssert.Contains(status.ComparisonDetails, "WrapperPath): <unavailable>");
+        Assert.IsFalse(status.CanInstall, "Unknown configuration must not offer a mutation.");
+        Assert.IsTrue((status with { GitConfigurationReadable = true }).CanInstall);
     }
 }

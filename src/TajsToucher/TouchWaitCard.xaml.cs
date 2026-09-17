@@ -17,7 +17,6 @@ public sealed partial class TouchWaitCard : Window
         InitializeComponent();
         AppWindow.SetIcon(Microsoft.UI.Win32Interop.GetIconIdFromIcon(AppIcon.Handle));
         var presenter = (OverlappedPresenter)AppWindow.Presenter;
-        presenter.IsAlwaysOnTop = true;
         presenter.IsResizable = false;
         presenter.IsMaximizable = false;
         presenter.IsMinimizable = false;
@@ -31,6 +30,9 @@ public sealed partial class TouchWaitCard : Window
             var height = Math.Min((int)Math.Ceiling(380 * scale), area.Height);
             AppWindow.MoveAndResize(new RectInt32(area.X + (area.Width - width) / 2,
                 area.Y + (area.Height - height) / 2, width, height));
+            // Apply after initial WinUI presentation and sizing, which can reset
+            // the native topmost style during startup.
+            presenter.IsAlwaysOnTop = true;
             DismissButton.Focus(FocusState.Programmatic);
             CheckEnded();
         };

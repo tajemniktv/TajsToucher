@@ -6,17 +6,19 @@ internal sealed class OperationObservation
     private readonly bool recordDiagnostics;
     private readonly bool notifyOnFailure;
     private readonly Stopwatch stopwatch = Stopwatch.StartNew();
-    private readonly Action<OperationEvent, string?> publish;
+    private readonly Action<OperationEvent, string?, bool> publish;
+    private readonly object sync = new();
+    private bool requestPublished;
     private bool completed;
 
     private OperationObservation(OpenPgpOperation operation, NotificationSettings settings,
-        Action<OperationEvent, string?> publish, bool suppressRequestNotification)
+        Action<OperationEvent, string?, bool> publish, bool suppressRequestNotification)
     {
         started = new OperationEvent(Guid.NewGuid(), DateTimeOffset.UtcNow, operation, OperationPhase.Requested);
         this.publish = publish;
         recordDiagnostics = settings.RecordDiagnostics;
         notifyOnFailure = settings.NotifyOnFailure && NotificationPolicy.IsOperationEnabled(operation, settings);
-        if (!suppressRequestNotification || recordDiagnostics) TryPublish(started);
+        if (!suppressRequestNotification) { requestPublished = true; TryPublish(started); }
     }
 
     public static OperationObservation? TryStart(OpenPgpOperation? operation, bool suppressRequestNotification = false)
@@ -25,9 +27,8 @@ internal sealed class OperationObservation
         try
         {
             var settings = new ConfigurationStore().LoadNotificationSettings();
-            return TryStart(operation.Value, settings,
-                (evt, repository) => LaunchHelper(evt, repository,
-                    suppressRequestNotification && evt.Phase == OperationPhase.Requested), suppressRequestNotification);
+            if (!Enum.IsDefined(operation.Value) || (!NotificationPolicy.IsOperationEnabled(operation.Value, settings) && !settings.RecordDiagnostics)) return null;
+            return new OperationObservation(operation.Value, settings, LaunchHelper, suppressRequestNotification);
         }
         catch
         {
@@ -43,7 +44,7 @@ internal sealed class OperationObservation
             if (!Enum.IsDefined(operation)) return null;
             var notify = NotificationPolicy.IsOperationEnabled(operation, settings);
             if (!notify && !settings.RecordDiagnostics) return null;
-            return new OperationObservation(operation, settings, publish, suppressRequestNotification);
+            return new OperationObservation(operation, settings, (evt, repository, _) => publish(evt, repository), suppressRequestNotification);
         }
         catch
         {
@@ -53,8 +54,12 @@ internal sealed class OperationObservation
 
     public void Complete(int exitCode)
     {
+        lock (sync)
+        {
         if (completed) return;
         completed = true;
+        // Defer the suppressed request record so fallback cannot duplicate diagnostics.
+        if (recordDiagnostics && !requestPublished) { requestPublished = true; TryPublish(started, diagnosticsOnly: true); }
         if (!recordDiagnostics && !(exitCode != 0 && notifyOnFailure)) return;
         TryPublish(started with
         {
@@ -63,13 +68,24 @@ internal sealed class OperationObservation
             ExitCode = exitCode,
             ElapsedMilliseconds = stopwatch.ElapsedMilliseconds,
         });
+        }
     }
 
-    private void TryPublish(OperationEvent operationEvent)
+    internal void RestoreRequestNotification()
+    {
+        lock (sync)
+        {
+            if (completed || requestPublished) return;
+            requestPublished = true;
+            TryPublish(started);
+        }
+    }
+
+    private void TryPublish(OperationEvent operationEvent, bool diagnosticsOnly = false)
     {
         try
         {
-            publish(operationEvent, null);
+            publish(operationEvent, null, diagnosticsOnly);
         }
         catch
         {

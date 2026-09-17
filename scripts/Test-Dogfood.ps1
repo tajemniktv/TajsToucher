@@ -69,6 +69,9 @@ try {
     Invoke-Deployment -Extra @('-SimulateStartupFailure') -ExpectFailure $true -FailurePattern 'Simulated startup failure'
     Assert-Payload 'v1'
     $null = Wait-Tray
+    Invoke-Deployment -Extra @('-SimulateReadinessTimeout') -ExpectFailure $true -FailurePattern 'Simulated readiness timeout'
+    Assert-Payload 'v1'
+    $null = Wait-Tray
     Invoke-Deployment
     Assert-Payload 'v2'
     if ((Get-Content -LiteralPath (Join-Path $state 'previous\payload-test.txt') -Raw).Trim() -ne 'v1') { throw 'Previous generation was not retained.' }
@@ -78,7 +81,13 @@ try {
     Write-Host 'PASS: full payload, readiness, proxy gate/resume, active-operation refusal, failed-start restoration, restart, and explicit rollback.'
 } finally {
     foreach ($p in @(Get-CimInstance Win32_Process -Filter "Name = 'TajsToucher.exe'" | Where-Object ExecutablePath -EQ $exe)) {
-        $event = [Threading.EventWaitHandle]::OpenExisting("Local\TajsToucher.Dogfood.Stop.$($p.ProcessId)")
-        try { $event.Set() | Out-Null } finally { $event.Dispose() }
+        $owned = Get-Process -Id $p.ProcessId -ErrorAction SilentlyContinue
+        try {
+            try {
+                $signal = [Threading.EventWaitHandle]::OpenExisting("Local\TajsToucher.Dogfood.Stop.$($p.ProcessId)")
+                try { $signal.Set() | Out-Null } finally { $signal.Dispose() }
+            } catch { Write-Warning "Isolated tray could not be signaled: $_" }
+            if ($owned -and !$owned.WaitForExit(15000)) { $owned.Kill(); $owned.WaitForExit() }
+        } finally { if ($owned) { $owned.Dispose() } }
     }
 }

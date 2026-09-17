@@ -257,7 +257,8 @@ on an actual need.
 The solution is now `TajsToucher.slnx`, migrated with the .NET 10 SDK while
 preserving all three project entries and the Any CPU/x64 configurations.
 README commands use the new filename; the old `.sln` was removed. The full
-Release suite passes **140/140** through the new solution. An ordinary Release
+Release suite initially passed **140/140** through the new solution; the final
+2026-09-17 staged PR tree passed **143/143**. An ordinary Release
 solution build passes with zero warnings/errors and automatically publishes,
 deploys, and restarts the permanent daily app through the existing workflow.
 

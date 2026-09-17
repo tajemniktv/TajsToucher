@@ -4,6 +4,25 @@ namespace TajsToucher.Tests;
 public sealed class OperationObservationTests
 {
     [TestMethod]
+    public void ObserverFallbackIsOneShotAndDoesNotDuplicateDiagnosticsOrOutliveSigning()
+    {
+        var events = new List<OperationEvent>();
+        var settings = NotificationSettings.Defaults with { RecordDiagnostics = true };
+        var observation = OperationObservation.TryStart(OpenPgpOperation.Signing, settings,
+            (evt, _) => events.Add(evt), suppressRequestNotification: true)!;
+        observation.RestoreRequestNotification();
+        observation.RestoreRequestNotification();
+        observation.Complete(0);
+        observation.RestoreRequestNotification();
+        CollectionAssert.AreEqual(new[] { OperationPhase.Requested, OperationPhase.Succeeded }, events.Select(e => e.Phase).ToArray());
+        events.Clear();
+        observation = OperationObservation.TryStart(OpenPgpOperation.Signing, NotificationSettings.Defaults,
+            (evt, _) => events.Add(evt), suppressRequestNotification: true)!;
+        observation.Complete(0);
+        observation.RestoreRequestNotification();
+        Assert.AreEqual(0, events.Count);
+    }
+    [TestMethod]
     public void TouchObserverReplacesRequestNoticeButPreservesFailureAndDiagnostics()
     {
         var events = new List<OperationEvent>();

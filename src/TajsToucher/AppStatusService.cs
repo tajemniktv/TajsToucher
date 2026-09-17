@@ -29,7 +29,7 @@ internal sealed record AppStatus(
         : !GitConfigurationReadable ? "Global Git configuration could not be read; run diagnose before changing configuration."
         : GitConfigurationMatches ? "Global Git setting points to TajsToucher" : "Global Git setting does not match";
     public string GpgValue => StatusReadFailed ? "Unknown" : RealGpgAvailable ? "Available" : "Unavailable";
-    public bool CanInstall => !StatusReadFailed && !IsReady;
+    public bool CanInstall => !StatusReadFailed && GitConfigurationReadable && !IsReady;
     public bool CanUninstall => !StatusReadFailed && IsInstalled && GitConfigurationMatches;
 
     public string Summary => StatusReadFailed

@@ -12,7 +12,8 @@
         </Grid.RowDefinitions>
         <TextBlock Text="TajsToucher  /  SIGNING" FontSize="12"
                    Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
-        <StackPanel Grid.Row="1" Spacing="12">
+        <ScrollViewer Grid.Row="1" HorizontalScrollBarVisibility="Disabled" VerticalScrollBarVisibility="Auto">
+        <StackPanel Spacing="12">
             <Border Width="52" Height="52" CornerRadius="14" HorizontalAlignment="Left"
                     Background="{ThemeResource AccentFillColorDefaultBrush}">
                 <Canvas Width="32" Height="32">
@@ -31,12 +32,13 @@
                        FontSize="12" TextWrapping="Wrap"
                        Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
         </StackPanel>
+        </ScrollViewer>
         <Grid Grid.Row="2" ColumnSpacing="16">
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="*" />
                 <ColumnDefinition Width="Auto" />
             </Grid.ColumnDefinitions>
-            <TextBlock Text="Closes when the wait ends." FontSize="12" TextWrapping="Wrap"
+            <TextBlock Text="Auto-hides when observation ends or after 30 seconds; hiding does not confirm a touch." FontSize="12" TextWrapping="Wrap"
                        VerticalAlignment="Center" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
             <Button x:Name="DismissButton" Grid.Column="1" Content="Dismiss" Click="DismissClicked"
                     ToolTipService.ToolTip="Hide this prompt. Signing continues in the requesting app."

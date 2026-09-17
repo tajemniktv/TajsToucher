@@ -16,8 +16,9 @@ internal static class GpgProxy
             return 1;
         }
 
-        using var touchObservation = GpgTouchObservation.TryStart(realGpg, args);
-        var observation = OperationObservation.TryStart(OperationClassifier.Classify(args), suppressRequestNotification: touchObservation is not null);
+        var observation = OperationObservation.TryStart(OperationClassifier.Classify(args), suppressRequestNotification: true);
+        using var touchObservation = GpgTouchObservation.TryStart(realGpg, args, () => observation?.RestoreRequestNotification());
+        if (touchObservation is null) observation?.RestoreRequestNotification();
         var exitCode = ForwardProcess(realGpg, args, Console.OpenStandardInput(), Console.OpenStandardOutput(), Console.OpenStandardError(),
             () => CancelIoEx(GetStdHandle(-10), IntPtr.Zero));
         observation?.Complete(exitCode);

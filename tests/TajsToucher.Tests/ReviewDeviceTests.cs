@@ -45,6 +45,17 @@ public sealed class ReviewDeviceTests
     }
 
     [TestMethod]
+    public void UsbPresenceExcludesHsmsUnknownProductsAndMalformedNodes()
+    {
+        Assert.AreEqual(3, UsbDevicePresence.CountPhysicalDevices([
+            @"USB\VID_1050&PID_0030\hsm", @"USB\VID_1050&PID_9999\unknown",
+            @"USB\VID_1050&PID_0407", @"USB\VID_1050&PID_0407\",
+            @"USB\VID_1050&PID_0407&MI_01\interface",
+            @"USB\VID_1050&PID_0120\security-key", @"USB\VID_1050&PID_0116\neo",
+            @"USB\VID_1050&PID_0407\current"]));
+    }
+
+    [TestMethod]
     public async Task IdleRemovalIsPrunedByTheSameRefresh()
     {
         var source = new Source { Keys = [Key(7)] };

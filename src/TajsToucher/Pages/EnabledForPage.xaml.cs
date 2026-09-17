@@ -5,18 +5,23 @@ namespace TajsToucher.Pages;
 
 public sealed partial class EnabledForPage : Page
 {
+    private bool refreshing;
+    private bool changingSetup;
     public EnabledForPage()
     {
         InitializeComponent();
         Loaded += (_, _) => RefreshStatus();
     }
 
-    internal void RefreshStatus(AppStatus? status = null)
+    internal async void RefreshStatus(AppStatus? status = null)
     {
+        if (refreshing || changingSetup) return;
+        refreshing = true;
+        SetActionsEnabled(false);
         DiagnosticsPathText.Text = DiagnosticEventSink.DefaultDirectory;
         try
         {
-            status ??= AppStatus.Load();
+            status ??= await Task.Run(AppStatus.Load);
             GitStatusText.Text = status.Summary;
             InstallButton.Visibility = status.CanInstall ? Visibility.Visible : Visibility.Collapsed;
             UninstallButton.Visibility = status.CanUninstall ? Visibility.Visible : Visibility.Collapsed;
@@ -26,12 +31,14 @@ public sealed partial class EnabledForPage : Page
                 ? "Recording metadata only. Two files, at most 64 KiB each."
                 : "Recording is off. Existing logs, if any, are retained.";
         }
-        catch (Exception exception) when (exception is IOException or InvalidOperationException or UnauthorizedAccessException)
+        catch (Exception)
         {
+            InstallButton.Visibility = UninstallButton.Visibility = Visibility.Collapsed;
             GitStatusText.Text = "Configuration could not be read. Run diagnose for setup details.";
             OperationRulesText.Text = "Notification rules are unavailable.";
             DiagnosticsStatusText.Text = "Recording status is unavailable.";
         }
+        finally { refreshing = false; SetActionsEnabled(true); }
     }
 
     internal void ConfigureEmbedded()
@@ -58,25 +65,32 @@ public sealed partial class EnabledForPage : Page
         finally { DiagnoseButton.IsEnabled = true; }
     }
 
-    private void Install_Click(object sender, RoutedEventArgs e)
+    private async void Install_Click(object sender, RoutedEventArgs e)
     {
+        if (refreshing || changingSetup) return;
+        changingSetup = true;
+        SetActionsEnabled(false);
         try
         {
-            var result = Installer.Install();
+            var result = await Task.Run(() => Installer.Install());
             ActionStatus.Text = result == 0
                 ? "Git is now connected to TajsToucher."
                 : "Install failed. Run diagnose and check Git's global configuration before retrying.";
-            RefreshStatus();
         }
-        catch (Exception exception) when (exception is IOException or InvalidOperationException or UnauthorizedAccessException)
+        catch (Exception)
         {
             ActionStatus.Text = "Install failed. Check Git's global configuration before retrying.";
-            _ = ShowMessageAsync(exception.Message, "TajsToucher");
         }
+        finally { changingSetup = false; RefreshStatus(); }
     }
 
     private async void Uninstall_Click(object sender, RoutedEventArgs e)
     {
+        if (refreshing || changingSetup) return;
+        changingSetup = true;
+        SetActionsEnabled(false);
+        try
+        {
         var dialog = new ContentDialog
         {
             Title = "Uninstall TajsToucher",
@@ -91,21 +105,23 @@ public sealed partial class EnabledForPage : Page
             return;
         }
 
-        try
-        {
-            var result = Installer.Uninstall();
+            var result = await Task.Run(() => Installer.Uninstall());
             ActionStatus.Text = result == 0
                 ? "TajsToucher was removed and Git was restored."
                 : result == 2
                     ? "Git changed elsewhere; saved installation state was kept."
                     : "Uninstall failed. Check Git's global configuration; restoration may be incomplete.";
-            RefreshStatus();
         }
-        catch (Exception exception) when (exception is IOException or InvalidOperationException or UnauthorizedAccessException)
+        catch (Exception)
         {
             ActionStatus.Text = "Uninstall failed. Check Git's global configuration; restoration may be incomplete.";
-            await ShowMessageAsync(exception.Message, "TajsToucher");
         }
+        finally { changingSetup = false; RefreshStatus(); }
+    }
+
+    private void SetActionsEnabled(bool enabled)
+    {
+        InstallButton.IsEnabled = UninstallButton.IsEnabled = DiagnoseButton.IsEnabled = enabled;
     }
 
     private async Task ShowMessageAsync(string message, string title)
