@@ -20,3 +20,5 @@ Thumbs.db
 *.local.yaml
 .env
 .env.*
+
+.codex/

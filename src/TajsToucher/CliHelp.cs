@@ -29,8 +29,8 @@ internal static class CliHelp
 
     public static int PrintVersion()
     {
-        var version = Assembly.GetExecutingAssembly().GetName().Version;
-        Console.WriteLine($"TajsToucher {version?.ToString(3) ?? "0.1.0"}");
+        var version = Assembly.GetExecutingAssembly().GetCustomAttribute<AssemblyInformationalVersionAttribute>()?.InformationalVersion;
+        Console.WriteLine($"TajsToucher {version ?? "0.1.0"}");
         return 0;
     }
 }

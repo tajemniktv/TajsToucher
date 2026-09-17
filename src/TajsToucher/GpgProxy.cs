@@ -4,6 +4,7 @@ internal static class GpgProxy
 {
     public static int Run(IReadOnlyList<string> args)
     {
+        using var activity = DogfoodLifecycle.EnterOperation();
         var wrapperPath = Environment.ProcessPath is { Length: > 0 } processPath
             ? Path.GetFullPath(processPath)
             : string.Empty;
