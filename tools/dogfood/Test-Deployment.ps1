@@ -10,6 +10,10 @@ if (!$StagePath) {
 $failures = @()
 foreach ($test in @('Test-Dogfood.ps1', 'Test-DogfoodLayoutMigration.ps1')) {
     try { & (Join-Path $repo "scripts/$test") -StagePath $StagePath }
-    catch { $failures += "${test}: $_"; Write-Warning $failures[-1] }
+    catch {
+        # Aggregation must retain the original assertion location, not just this runner's final throw.
+        $failures += "${test}: $_`n$($_.InvocationInfo.PositionMessage)`n$($_.ScriptStackTrace)"
+        Write-Warning $failures[-1]
+    }
 }
 if ($failures.Count) { throw ($failures -join "`n") }
