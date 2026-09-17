@@ -81,6 +81,7 @@ internal sealed class SdkDiscoverySource : IKeyDiscovery
 {
     private readonly object sync = new();
     private YubiKeyDeviceListener? listener;
+    private bool lastDiscoveryWasEmpty;
     public event Action<IYubiKeyDevice, bool>? PresenceChanged;
 
     public SdkDiscoverySource()
@@ -93,6 +94,17 @@ internal sealed class SdkDiscoverySource : IKeyDiscovery
     {
         lock (sync)
         {
+            // FindAll only reads the SDK cache. An interface skipped while GPG
+            // owned it is not retried merely because its owner later releases it.
+            // Restart only an empty cache on a subsequent refresh; never replace
+            // discovered anonymous device identities just to refresh metadata.
+            if (listener is not null && lastDiscoveryWasEmpty && !YubiKeyDevice.FindAll().Any())
+            {
+                listener.Arrived -= Arrived;
+                listener.Removed -= Removed;
+                YubiKeyDeviceListener.StopListening();
+                listener = null;
+            }
             if (listener is null)
             {
                 listener = YubiKeyDeviceListener.Instance;
@@ -102,7 +114,9 @@ internal sealed class SdkDiscoverySource : IKeyDiscovery
             // SDK 1.17.3 returns the listener cache's object references, including
             // serial-less keys. Do not replace these with device-info fingerprints:
             // two identical anonymous keys must remain distinct.
-            return YubiKeyDevice.FindAll().ToArray();
+            var devices = YubiKeyDevice.FindAll().ToArray();
+            lastDiscoveryWasEmpty = devices.Length == 0;
+            return devices;
         }
     }
 

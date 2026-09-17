@@ -11,6 +11,40 @@ namespace TajsToucher.Tests;
 public sealed class ReviewDeviceTests
 {
     [TestMethod]
+    public async Task AttachedUsbDeviceRemainsVisibleWhenSdkIsEmptyOrDenied()
+    {
+        var source = new Source();
+        await using var service = new YubiKeyService(source, usbPresence: () => 1);
+        var empty = await service.RefreshInventoryAsync();
+        Assert.AreEqual(1, empty.AttachedUsbDevices);
+        Assert.AreEqual(0, empty.Keys.Count, "USB presence must not invent usable SDK handles.");
+        source.Failure = new UnauthorizedAccessException();
+        var denied = await service.RefreshInventoryAsync();
+        Assert.AreEqual(1, denied.AttachedUsbDevices);
+        Assert.AreEqual(DeviceOutcome.PermissionDenied, denied.Outcome);
+    }
+
+    [TestMethod]
+    public async Task UsbPresenceFailureDoesNotHideAccessibleSdkKeys()
+    {
+        var source = new Source { Keys = [Key(7)] };
+        await using var service = new YubiKeyService(source, usbPresence: () => throw new IOException());
+        var result = await service.RefreshInventoryAsync();
+        Assert.IsNull(result.AttachedUsbDevices);
+        Assert.AreEqual(1, result.Keys.Count);
+        Assert.AreEqual(DeviceOutcome.Ready, result.Outcome);
+    }
+
+    [TestMethod]
+    public void UsbPresenceCountsPhysicalDevicesNotCompositeInterfaces()
+    {
+        Assert.AreEqual(2, UsbDevicePresence.CountPhysicalDevices([
+            @"USB\VID_1050&PID_0406\one", @"usb\vid_1050&pid_0406\ONE",
+            @"USB\VID_1050&PID_0406&MI_00\interface", @"HID\VID_1050&PID_0406\hid",
+            @"USB\VID_1050&PID_0406\two", @"USB\VID_1234&PID_0406\other"]));
+    }
+
+    [TestMethod]
     public async Task IdleRemovalIsPrunedByTheSameRefresh()
     {
         var source = new Source { Keys = [Key(7)] };
@@ -262,11 +296,12 @@ public sealed class ReviewDeviceTests
     }
     private sealed class Source : IKeyDiscovery
     {
+        public Exception? Failure { get; set; }
         public IReadOnlyList<IYubiKeyDevice> Keys { get; set; } = [];
         public int Disposals { get; private set; }
         public event Action<IYubiKeyDevice, bool>? PresenceChanged;
         public void Announce(IYubiKeyDevice key, bool arrived) => PresenceChanged?.Invoke(key, arrived);
-        public IReadOnlyList<IYubiKeyDevice> FindAll() => Keys;
+        public IReadOnlyList<IYubiKeyDevice> FindAll() => Failure is { } error ? throw error : Keys;
         public void Dispose() => Disposals++;
     }
     private sealed class Operations : IKeyOperations

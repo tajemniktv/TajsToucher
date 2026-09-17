@@ -24,7 +24,10 @@ internal static class DeviceDiagnostics
         Console.WriteLine("Yubico native shim: loaded successfully.");
         await using var service = new YubiKeyService();
         var result = await service.RefreshInventoryAsync();
-        Console.WriteLine($"YubiKey SDK discovery: {result.Outcome}; connected keys: {result.Keys.Count}.");
+        Console.WriteLine($"Windows attached Yubico USB devices: {result.AttachedUsbDevices?.ToString() ?? "unknown"}.");
+        Console.WriteLine($"YubiKey SDK discovery: {result.Outcome}; accessible keys: {result.Keys.Count}.");
+        if (result.Keys.Count == 0)
+            Console.WriteLine("An empty SDK inventory does not prove the key is disconnected. Another application may own its interface, or Windows may deny access.");
         Console.WriteLine("Inventory only; no application-status reads, PIN attempts, or touch tests. Listeners stopped on exit.");
         return result.Outcome == DeviceOutcome.Ready ? 0 : 1;
     }

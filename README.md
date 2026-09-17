@@ -223,8 +223,27 @@ and opens the folder; you can remove the two log files when no longer needed.
 
 ### Optional YubiKey diagnostics
 
-Open **Devices** (or run `TajsToucher.exe devices`), then click **Discover /
-refresh keys**. The pinned Yubico SDK runs in a separate desktop-only assembly.
+Open **Devices** (or run `TajsToucher.exe devices`) to refresh inventory;
+**Discover / refresh keys** retries it explicitly. Connected USB hardware is
+shown as presence cards, independently of usable SDK handles. Optional SDK
+controls live in a collapsed diagnostics section; unavailable SDK access does
+not hide the hardware cards or prevent signing prompts. USB card numbers are
+snapshot labels, not identities matched to SDK keys. The pinned Yubico SDK runs
+in a separate desktop-only assembly.
+An empty SDK inventory means no *accessible* key, not necessarily an unplugged
+key. GPG can own the smart-card interface while Windows denies direct FIDO
+access. Refresh retries a previously empty SDK cache without requiring a USB
+replug; it does not stop GPG, take over its card connection, or elevate the app.
+Retry after the other application releases the interface. Existing nonempty
+inventories retain their device identities and listeners.
+The Devices page separately reports **Windows USB attachment** using present
+PnP device nodes, without opening a card or HID connection. This can detect an
+attached Yubico USB device even when the SDK cannot open it. Composite USB
+interfaces are not counted as separate keys. Unknown OS presence stays unknown;
+this USB-only count is not NFC inventory or proof of a usable credential.
+GPG may retain exclusive card access after signing finishes, so refresh cannot
+guarantee SDK access. The app never kills scdaemon or silently enables
+`pcsc-shared` to work around this restriction.
 Discovery stays active until the tray app exits; it is never started by a GPG
 invocation. Select a key explicitly when several are connected. Inventory shows
 firmware and available/enabled USB/NFC applications, not credential usability.
