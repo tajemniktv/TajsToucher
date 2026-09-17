@@ -57,7 +57,10 @@ and app references built by the test project do not deploy. `dotnet test` is tes
 Explicit SingleFile publishes also deploy; other publish profiles/output formats do not.
 An IDE's up-to-date check that skips MSBuild does not trigger deployment.
 
-Staging and test work live in `.codex/temp/dogfood`. SDK build/intermediate outputs use the
+Staging lives in `.codex/temp/dogfood`; isolated test runs also use sibling
+`.codex/temp/dogfood-test-*` and `dogfood-migration-*` directories. These diagnostic
+trees are retained for inspection and can be removed after their processes exit.
+SDK build/intermediate outputs use the
 central repo-level `artifacts/bin` and `artifacts/obj` layout; both `artifacts/` and `.codex/`
 are ignored. Existing old `bin/obj` folders are excluded from source globs, not deleted.
 `version` and executable ProductVersion include the Git commit and explicit `.clean`/`.dirty` state,
@@ -115,7 +118,8 @@ It requires working GnuPG for the harmless `--version` proxy probe. Its fixtures
 
 For an older flat LocalAppData install, publish with dogfooding disabled, then run
 `scripts/Migrate-DogfoodLayout.ps1 -StagePath <staged-SingleFile-folder>`. It blocks active GPG,
-stops the old tray gracefully, validates `current`, migrates Git only if the registry and Git
+stops protocol-aware old trays gracefully (exit pre-protocol trays manually first),
+validates `current`, migrates Git only if the registry and Git
 still own the old path, and preserves all other registry values including the uninstall backup.
 The old flat payload becomes `previous`; the former sibling `.TajsToucher-dogfood` is moved
 intact into `retained/legacy-dogfood` (its old `previous.txt` is archival metadata, not the active
