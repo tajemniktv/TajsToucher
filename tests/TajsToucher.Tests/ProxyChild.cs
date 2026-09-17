@@ -8,6 +8,13 @@ internal static class ProxyChild
 {
     public static int Main(string[] args)
     {
+        if (args.SequenceEqual(new[] { "--no-autostart", "SCD GETATTR UIF-1", "/bye" }))
+        {
+            // Simulates a hung probe, not a real daemon. The observer must kill
+            // only this child and release its notification without delaying Git.
+            Thread.Sleep(TimeSpan.FromSeconds(60));
+            return 0;
+        }
         if (args.Length == 1 && args[0] == "--proxy-sdk-isolation")
         {
             using var inputBuffer = new MemoryStream();

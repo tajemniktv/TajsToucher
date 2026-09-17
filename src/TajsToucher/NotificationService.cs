@@ -7,6 +7,23 @@ internal static class NotificationService
 {
     private const int BalloonDurationMilliseconds = 10_000;
 
+    internal static int ShowTouchWait(string eventName)
+    {
+        const string prefix = "Local\\TajsToucher.TouchWait.";
+        if (!eventName.StartsWith(prefix, StringComparison.Ordinal) ||
+            !Guid.TryParseExact(eventName[prefix.Length..], "N", out _)) return 2;
+        try
+        {
+            using var ended = EventWaitHandle.OpenExisting(eventName);
+            if (ended.WaitOne(0)) return 0; // Delayed helper must not show a stale prompt.
+            var settings = new ConfigurationStore().LoadNotificationSettings();
+            if (!settings.ObserveSigningTouchWait || !settings.NotifyOnSigning) return 0;
+            TouchWaitWindow.Show(ended);
+        }
+        catch { /* Missing/finished observer or unavailable shell: fail open. */ }
+        return 0;
+    }
+
     public static bool TryLaunch(string? repositoryName, bool bypassCooldown = false)
     {
         try
@@ -146,7 +163,7 @@ internal static class NotificationService
                 throw new System.ComponentModel.Win32Exception(error, "Could not create the notification host.");
             }
 
-            fallbackIconHandle = LoadIconW(0, IdiApplication);
+            fallbackIconHandle = AppIcon.Handle;
             var data = CreateNotifyIconData(NifMessage | NifIcon | NifTip | NifShowTip);
             data.CallbackMessage = WmApp + 1;
             data.Icon = customIcon?.Handle ?? fallbackIconHandle;

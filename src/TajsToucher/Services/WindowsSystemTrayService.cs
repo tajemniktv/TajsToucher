@@ -77,7 +77,7 @@ internal sealed class WindowsSystemTrayService : IDisposable
             throw new System.ComponentModel.Win32Exception(error, "Could not create the TajsToucher tray window.");
         }
 
-        fallbackIconHandle = LoadIconW(0, IdiApplication);
+        fallbackIconHandle = AppIcon.Handle;
         var data = CreateNotifyIconData(NifMessage | NifIcon | NifTip | NifShowTip);
         data.CallbackMessage = TrayCallbackMessage;
         data.Icon = fallbackIconHandle;

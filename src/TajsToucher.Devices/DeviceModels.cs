@@ -9,7 +9,11 @@ public enum DeviceSignalKind { Arrived, Removed, TouchRequested, TouchReleased, 
 // No serial number, path, credential, account label or SDK exception text crosses this boundary.
 public sealed record DeviceSignal(Guid CorrelationId, Guid DeviceId, DateTimeOffset Timestamp,
     DeviceSignalKind Kind, DeviceOutcome Outcome);
-public sealed record InventoryResult(IReadOnlyList<ConnectedKey> Keys, DeviceOutcome Outcome);
+public sealed record InventoryResult(IReadOnlyList<ConnectedKey> Keys, DeviceOutcome Outcome)
+{
+    // Separate USB attachment evidence; never invent SDK handles or match keys by count.
+    public int? AttachedUsbDevices { get; init; }
+}
 
 public interface IDeviceService : IAsyncDisposable
 {

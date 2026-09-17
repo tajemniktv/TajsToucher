@@ -1,0 +1,19 @@
+<Project>
+  <Target Name="LocalGitIdentity" BeforeTargets="GetAssemblyVersion" Condition="'$(MSBuildProjectName)' == 'TajsToucher' and '$(OS)' == 'Windows_NT' and '$(DesignTimeBuild)' != 'true'">
+    <Exec Command="powershell -NoProfile -ExecutionPolicy Bypass -File &quot;$(MSBuildThisFileDirectory)tools\dogfood\Get-BuildIdentity.ps1&quot;" ConsoleToMSBuild="true" StandardOutputImportance="Low">
+      <Output TaskParameter="ConsoleOutput" PropertyName="TajsGitIdentity" />
+    </Exec>
+    <PropertyGroup>
+      <InformationalVersion>0.1.0+$(TajsGitIdentity)</InformationalVersion>
+      <IncludeSourceRevisionInInformationalVersion>false</IncludeSourceRevisionInInformationalVersion>
+    </PropertyGroup>
+  </Target>
+  <Target Name="DeployLocalDogfood" AfterTargets="Build"
+          Condition="'$(MSBuildProjectName)' == 'TajsToucher' and '$(DogfoodEnabled)' == 'true' and '$(Dogfood)' != 'false' and '$(OS)' == 'Windows_NT' and '$(DesignTimeBuild)' != 'true' and '$(IsCrossTargetingBuild)' != 'true' and '$(IsTestProject)' != 'true' and '$(TajsDogfoodTestOnly)' != 'true' and '$(ContinuousIntegrationBuild)' != 'true' and '$(TajsDogfoodIsCI)' != 'true' and '$(VSTestSessionCorrelationId)' == '' and '$(_IsPublishing)' != 'true'">
+    <Exec Command="powershell -NoProfile -ExecutionPolicy Bypass -File &quot;$(MSBuildThisFileDirectory)tools\dogfood\Deploy.ps1&quot; -Configuration &quot;$(Configuration)&quot;" />
+  </Target>
+  <Target Name="DeployPublishedDogfood" AfterTargets="Publish"
+          Condition="'$(MSBuildProjectName)' == 'TajsToucher' and '$(PublishProfile)' == 'SingleFile' and '$(DogfoodEnabled)' == 'true' and '$(Dogfood)' != 'false' and '$(OS)' == 'Windows_NT' and '$(DesignTimeBuild)' != 'true' and '$(IsTestProject)' != 'true' and '$(TajsDogfoodTestOnly)' != 'true' and '$(ContinuousIntegrationBuild)' != 'true' and '$(TajsDogfoodIsCI)' != 'true' and '$(VSTestSessionCorrelationId)' == ''">
+    <Exec Command="powershell -NoProfile -ExecutionPolicy Bypass -File &quot;$(MSBuildThisFileDirectory)tools\dogfood\Deploy.ps1&quot; -Configuration &quot;$(Configuration)&quot; -StagePath &quot;$(PublishDir).&quot;" />
+  </Target>
+</Project>

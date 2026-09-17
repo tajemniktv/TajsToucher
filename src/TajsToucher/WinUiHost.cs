@@ -14,7 +14,7 @@ public enum AppPage
 
 internal static class AppShellLauncher
 {
-    public static int Show(AppPage initialPage = AppPage.Home)
+    public static int Show(AppPage initialPage = AppPage.Home, EventWaitHandle? touchWait = null)
     {
         App.InitialPage = initialPage;
         ComWrappersSupport.InitializeComWrappers();
@@ -22,7 +22,7 @@ internal static class AppShellLauncher
         {
             var context = new DispatcherQueueSynchronizationContext(DispatcherQueue.GetForCurrentThread());
             SynchronizationContext.SetSynchronizationContext(context);
-            new App();
+            new App(touchWait);
         });
         return 0;
     }

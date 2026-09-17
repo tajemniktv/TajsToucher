@@ -24,6 +24,9 @@ internal static class ProcessRunner
             RedirectStandardInput = true,
             RedirectStandardOutput = true,
             RedirectStandardError = true,
+            // Git emits UTF-8, independent of the Windows console/OEM code page.
+            StandardOutputEncoding = Encoding.UTF8,
+            StandardErrorEncoding = Encoding.UTF8,
         };
 
         if (!string.IsNullOrWhiteSpace(workingDirectory))

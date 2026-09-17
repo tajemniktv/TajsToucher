@@ -1,0 +1,11 @@
+<Project>
+  <PropertyGroup>
+    <UseArtifactsOutput>true</UseArtifactsOutput>
+    <!-- Old outputs must not become source inputs after switching layouts. -->
+    <DefaultItemExcludes>$(DefaultItemExcludes);**/bin/**;**/obj/**</DefaultItemExcludes>
+    <DogfoodEnabled Condition="'$(DogfoodEnabled)' == '' and '$(Dogfood)' != ''">$(Dogfood)</DogfoodEnabled>
+    <DogfoodEnabled Condition="'$(DogfoodEnabled)' == '' and '$(TAJSTOUCHER_DOGFOOD)' != ''">$(TAJSTOUCHER_DOGFOOD)</DogfoodEnabled>
+    <DogfoodEnabled Condition="'$(DogfoodEnabled)' == ''">true</DogfoodEnabled>
+    <TajsDogfoodIsCI Condition="('$(CI)' != '' and '$(CI)' != 'false' and '$(CI)' != '0') or ('$(GITHUB_ACTIONS)' != '' and '$(GITHUB_ACTIONS)' != 'false' and '$(GITHUB_ACTIONS)' != '0') or ('$(TF_BUILD)' != '' and '$(TF_BUILD)' != 'false' and '$(TF_BUILD)' != '0') or '$(BUILD_BUILDID)' != '' or '$(JENKINS_URL)' != '' or '$(TEAMCITY_VERSION)' != ''">true</TajsDogfoodIsCI>
+  </PropertyGroup>
+</Project>

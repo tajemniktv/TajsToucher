@@ -1,0 +1,52 @@
+<Window
+    x:Class="TajsToucher.TouchWaitCard"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    Title="TajsToucher — signing">
+    <Grid x:Name="Root" Background="{ThemeResource ApplicationPageBackgroundThemeBrush}"
+          Padding="28" RowSpacing="20">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+            <RowDefinition Height="Auto" />
+        </Grid.RowDefinitions>
+        <TextBlock Text="TajsToucher  /  SIGNING" FontSize="12"
+                   Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+        <ScrollViewer Grid.Row="1" HorizontalScrollBarVisibility="Disabled" VerticalScrollBarVisibility="Auto">
+        <StackPanel Spacing="12">
+            <Border Width="52" Height="52" CornerRadius="14" HorizontalAlignment="Left"
+                    Background="{ThemeResource AccentFillColorDefaultBrush}">
+                <Canvas Width="32" Height="32">
+                    <Ellipse Canvas.Left="3" Canvas.Top="3" Width="13" Height="13"
+                             Stroke="{ThemeResource TextOnAccentFillColorPrimaryBrush}" StrokeThickness="2" />
+                    <Path Data="M 14,14 L 28,28 M 21,21 L 25,17 M 25,25 L 29,21"
+                          Stroke="{ThemeResource TextOnAccentFillColorPrimaryBrush}" StrokeThickness="2"
+                          StrokeStartLineCap="Round" StrokeEndLineCap="Round" />
+                </Canvas>
+            </Border>
+            <TextBlock Text="Key may be waiting for touch" FontSize="22" FontWeight="SemiBold"
+                       TextWrapping="Wrap" Foreground="{ThemeResource TextFillColorPrimaryBrush}" />
+            <TextBlock Text="Touch your key if it’s blinking." FontSize="14"
+                       Foreground="{ThemeResource TextFillColorPrimaryBrush}" TextWrapping="Wrap" />
+            <TextBlock Text="GPG is busy. A PIN prompt or another operation can also cause this wait."
+                       FontSize="12" TextWrapping="Wrap"
+                       Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+        </StackPanel>
+        </ScrollViewer>
+        <Grid Grid.Row="2" ColumnSpacing="16">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="Auto" />
+            </Grid.ColumnDefinitions>
+            <TextBlock Text="Auto-hides when observation ends or after 30 seconds; hiding does not confirm a touch." FontSize="12" TextWrapping="Wrap"
+                       VerticalAlignment="Center" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+            <Button x:Name="DismissButton" Grid.Column="1" Content="Dismiss" Click="DismissClicked"
+                    ToolTipService.ToolTip="Hide this prompt. Signing continues in the requesting app."
+                    AutomationProperties.HelpText="Only hides this prompt. Cancel signing in the requesting app.">
+                <Button.KeyboardAccelerators>
+                    <KeyboardAccelerator Key="Escape" Invoked="DismissInvoked" />
+                </Button.KeyboardAccelerators>
+            </Button>
+        </Grid>
+    </Grid>
+</Window>

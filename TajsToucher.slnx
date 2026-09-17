@@ -1,0 +1,11 @@
+<Solution>
+  <Configurations>
+    <Platform Name="Any CPU" />
+    <Platform Name="x64" />
+  </Configurations>
+  <Folder Name="/src/">
+    <Project Path="src/TajsToucher.Devices/TajsToucher.Devices.csproj" />
+  </Folder>
+  <Project Path="src/TajsToucher/TajsToucher.csproj" />
+  <Project Path="tests/TajsToucher.Tests/TajsToucher.Tests.csproj" />
+</Solution>

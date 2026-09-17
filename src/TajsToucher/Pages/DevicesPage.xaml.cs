@@ -6,8 +6,11 @@ namespace TajsToucher.Pages;
 
 public sealed partial class DevicesPage : Page
 {
-    private readonly ComboBox selector = new() { Header = "Connected key", DisplayMemberPath = nameof(ConnectedKey.Label), MinWidth = 360 };
+    private readonly ComboBox selector = new() { Header = "SDK-accessible key", DisplayMemberPath = nameof(ConnectedKey.Label), MinWidth = 360 };
     private readonly TextBlock inventory = new() { TextWrapping = TextWrapping.Wrap };
+    private readonly TextBlock presence = new() { TextWrapping = TextWrapping.Wrap };
+    private readonly StackPanel attachedKeys = new() { Spacing = 8 };
+    private readonly StackPanel actions = new() { Orientation = Orientation.Horizontal, Spacing = 12 };
     private readonly TextBlock status = new() { TextWrapping = TextWrapping.Wrap, IsTextSelectionEnabled = true };
     private readonly Button connect = new() { Content = "Discover / refresh keys" };
     private readonly Button read = new() { Content = "Read application status", IsEnabled = false };
@@ -17,21 +20,25 @@ public sealed partial class DevicesPage : Page
     private CancellationTokenSource? testCancellation;
     private bool busy;
     private bool active;
+    private bool inventoryReady;
 
     public DevicesPage()
     {
         InitializeComponent();
         var panel = new StackPanel { Padding = new Thickness(32), Spacing = 16, MaxWidth = 1200, HorizontalAlignment = HorizontalAlignment.Stretch };
         panel.Children.Add(new TextBlock { Text = "YubiKey devices", FontSize = 28 });
-        panel.Children.Add(new TextBlock { Text = "Optional, local SDK diagnostics. Discovery starts only when requested and stays active until app exit. Application reads and touch tests run only when clicked. This does not monitor other apps' touch requests.", TextWrapping = TextWrapping.Wrap });
+        panel.Children.Add(new TextBlock { Text = "Connected hardware is shown independently of SDK access. Git/GPG signing and its touch-wait prompt do not depend on these diagnostics.", TextWrapping = TextWrapping.Wrap });
         panel.Children.Add(connect);
-        panel.Children.Add(selector);
-        panel.Children.Add(inventory);
-        var actions = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 12 };
+        panel.Children.Add(presence);
+        panel.Children.Add(attachedKeys);
+        var diagnostics = new StackPanel { Spacing = 12 };
+        diagnostics.Children.Add(new TextBlock { Text = "Optional application reads and identify tests. No PIN entry, credentials, signatures, or key changes. Access can be unavailable while GPG owns the connection or Windows restricts FIDO.", TextWrapping = TextWrapping.Wrap });
+        diagnostics.Children.Add(selector);
+        diagnostics.Children.Add(inventory);
         actions.Children.Add(read); actions.Children.Add(identify); actions.Children.Add(cancel);
-        panel.Children.Add(actions);
-        panel.Children.Add(new TextBlock { Text = "No PIN entry, credential enumeration, code generation, or key changes. Direct FIDO access may be denied by Windows; the app never elevates itself.", TextWrapping = TextWrapping.Wrap });
-        panel.Children.Add(status);
+        diagnostics.Children.Add(actions);
+        diagnostics.Children.Add(status);
+        panel.Children.Add(new Expander { Header = "Optional SDK diagnostics", Content = diagnostics, HorizontalAlignment = HorizontalAlignment.Stretch });
         Content = new ScrollViewer { Content = panel };
         connect.Click += Discover;
         read.Click += ReadStatus;
@@ -43,6 +50,7 @@ public sealed partial class DevicesPage : Page
             active = true;
             service = (App.DeviceFeatureLifetime as DesktopDeviceFeature)?.Service;
             if (service is not null) Subscribe();
+            if (!busy) Discover(this, new RoutedEventArgs());
         };
         Unloaded += (_, _) =>
         {
@@ -81,22 +89,49 @@ public sealed partial class DevicesPage : Page
     private void OnInventory(InventoryResult result) => DispatcherQueue.TryEnqueue(() =>
     {
         if (!active) return;
+        inventoryReady = result.Outcome == DeviceOutcome.Ready;
+        var accessibility = inventoryReady ? result.Keys.Count.ToString() : "unknown (refresh failed)";
+        presence.Text = result.AttachedUsbDevices switch
+        {
+            > 0 => $"Windows detects {result.AttachedUsbDevices} attached Yubico USB key(s). SDK-accessible keys: {accessibility}.",
+            0 => $"Windows detects no attached Yubico USB keys. SDK-accessible keys (including other transports): {accessibility}.",
+            _ => "Windows USB presence is unavailable; this does not mean the key is disconnected.",
+        };
+        attachedKeys.Children.Clear();
+        for (var i = 0; i < result.AttachedUsbDevices.GetValueOrDefault(); i++)
+            attachedKeys.Children.Add(new InfoBar
+            {
+                IsOpen = true, IsClosable = false, Severity = InfoBarSeverity.Success,
+                Title = $"Yubico USB device {i + 1} · Connected",
+                Message = "Detected by Windows. This does not depend on SDK access.",
+            });
+        // These are OS presence cards, not SDK handles or inferred matches to keys.
+        if (!inventoryReady)
+        {
+            inventory.Text = $"Discovery: {result.Outcome}. Any previous selection is stale; current SDK accessibility is unknown. Refresh after the other application releases the interface.";
+            ShowSelection();
+            return;
+        }
+        selector.Visibility = actions.Visibility = result.Keys.Count == 0 ? Visibility.Collapsed : Visibility.Visible;
         var selectedId = (selector.SelectedItem as ConnectedKey)?.Id;
         selector.ItemsSource = result.Keys;
         selector.SelectedItem = result.Keys.FirstOrDefault(key => key.Id == selectedId);
         if (selector.SelectedItem is null && result.Keys.Count == 1) selector.SelectedIndex = 0;
-        if (result.Outcome != DeviceOutcome.Ready) inventory.Text = $"Discovery: {result.Outcome}. Retry discovery; this is not proof no key is attached.";
-        else if (result.Keys.Count == 0) inventory.Text = "No connected YubiKey found.";
+        if (result.Keys.Count == 0) inventory.Text = result.AttachedUsbDevices > 0
+            ? "Diagnostics currently unavailable. GPG may retain the smart-card connection between signatures; Windows may also restrict FIDO access. Your connected hardware remains shown above. Signing is unaffected—no replug is required for normal use."
+            : result.AttachedUsbDevices is null
+                ? "USB presence is unknown and no SDK key is accessible. Retry after the other application releases the interface; this does not prove the key is disconnected."
+                : "No SDK-accessible key for diagnostics. Connect a key and refresh. Signing notifications operate independently.";
         else if (selector.SelectedItem is null) inventory.Text = "Select a key explicitly. Labels are local to this discovery session; no serial numbers are logged.";
         ShowSelection();
     });
 
     private void ShowSelection()
     {
-        if (selector.SelectedItem is ConnectedKey key)
+        if (inventoryReady && selector.SelectedItem is ConnectedKey key)
             inventory.Text = $"Firmware: {key.Firmware}\nUSB available: {key.UsbAvailable}\nUSB enabled: {key.UsbEnabled}\nNFC available: {key.NfcAvailable}\nNFC enabled: {key.NfcEnabled}";
-        read.IsEnabled = !busy && selector.SelectedItem is ConnectedKey;
-        identify.IsEnabled = !busy && selector.SelectedItem is ConnectedKey { CanIdentify: true };
+        read.IsEnabled = !busy && inventoryReady && selector.SelectedItem is ConnectedKey;
+        identify.IsEnabled = !busy && inventoryReady && selector.SelectedItem is ConnectedKey { CanIdentify: true };
     }
 
     private async void ReadStatus(object sender, RoutedEventArgs args)

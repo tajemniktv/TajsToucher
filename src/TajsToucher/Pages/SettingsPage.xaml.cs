@@ -42,6 +42,7 @@ public sealed partial class SettingsPage : Page
         EncryptionToggle.IsOn = settings.NotifyOnEncryption;
         DecryptionToggle.IsOn = settings.NotifyOnDecryption;
         FailureToggle.IsOn = settings.NotifyOnFailure;
+        TouchWaitToggle.IsOn = settings.ObserveSigningTouchWait;
         DiagnosticsToggle.IsOn = settings.RecordDiagnostics;
         DevicePresenceToggle.IsOn = settings.NotifyOnDevicePresence;
         LowRetriesToggle.IsOn = settings.NotifyOnLowRetries;
@@ -126,6 +127,7 @@ public sealed partial class SettingsPage : Page
             NotifyOnEncryption = EncryptionToggle.IsOn,
             NotifyOnDecryption = DecryptionToggle.IsOn,
             NotifyOnFailure = FailureToggle.IsOn,
+            ObserveSigningTouchWait = TouchWaitToggle.IsOn,
             RecordDiagnostics = DiagnosticsToggle.IsOn,
             NotifyOnDevicePresence = DevicePresenceToggle.IsOn,
             NotifyOnLowRetries = LowRetriesToggle.IsOn,

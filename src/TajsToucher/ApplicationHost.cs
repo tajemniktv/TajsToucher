@@ -6,13 +6,17 @@ internal static class ApplicationHost
     {
         var marker = Environment.GetEnvironmentVariable(HelperDispatch.EnvironmentVariable);
         Environment.SetEnvironmentVariable(HelperDispatch.EnvironmentVariable, null);
-        return Run(args, marker, GpgProxy.Run, OperationObservation.RunHelper);
+        if (marker == HelperDispatch.TouchWait && args.Count == 2 && args[0] == "--touch-wait")
+            return NotificationService.ShowTouchWait(args[1]);
+        return Run(args, marker, GpgProxy.Run,
+            events => OperationObservation.RunHelper(events, marker == HelperDispatch.OperationDiagnostics));
     }
 
     internal static int Run(IReadOnlyList<string> args, string? marker,
         Func<IReadOnlyList<string>, int> forward, Func<IReadOnlyList<string>, int> operationHelper)
     {
-        if (marker == HelperDispatch.Operation && args.Count > 0 && args[0] == "--operation-event")
+        if ((marker == HelperDispatch.Operation || marker == HelperDispatch.OperationDiagnostics) &&
+            args.Count > 0 && args[0] == "--operation-event")
         {
             return operationHelper(args);
         }

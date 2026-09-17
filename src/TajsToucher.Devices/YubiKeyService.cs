@@ -16,18 +16,21 @@ public sealed class YubiKeyService : IDeviceService
     private readonly IKeyDiscovery discovery;
     private readonly IKeyOperations operations;
     private readonly Action? beforeSessionWait;
+    private readonly Func<int?> usbPresence;
     private bool initialized;
     private Task? disposal;
 
     public event Action<InventoryResult>? InventoryChanged;
     public event Action<DeviceSignal>? Signal;
 
-    public YubiKeyService() : this(new SdkKeyDiscovery()) { }
-    internal YubiKeyService(IKeyDiscovery discovery, IKeyOperations? operations = null, Action? beforeSessionWait = null)
+    public YubiKeyService() : this(new SdkKeyDiscovery(), usbPresence: UsbDevicePresence.CountAttached) { }
+    internal YubiKeyService(IKeyDiscovery discovery, IKeyOperations? operations = null, Action? beforeSessionWait = null,
+        Func<int?>? usbPresence = null)
     {
         this.discovery = discovery;
         this.operations = operations ?? new SdkKeyOperations();
         this.beforeSessionWait = beforeSessionWait;
+        this.usbPresence = usbPresence ?? (() => null);
         refreshTimer = new Timer(_state => { _ = RefreshInventoryAsync(); }, null, Timeout.Infinite, Timeout.Infinite);
         discovery.PresenceChanged += OnPresenceChanged;
     }
@@ -38,9 +41,11 @@ public sealed class YubiKeyService : IDeviceService
         InventoryResult result;
         var signals = new List<DeviceSignal>();
         var removed = new List<DeviceEntry>();
+        int? attached = null;
         try
         {
             if (stopping.IsCancellationRequested) return new InventoryResult([], DeviceOutcome.Unavailable);
+            try { attached = usbPresence(); } catch { /* Presence failure must not prevent SDK enumeration. */ }
             var found = discovery.FindAll();
             lock (sync)
             {
@@ -74,6 +79,7 @@ public sealed class YubiKeyService : IDeviceService
         }
         catch (Exception ex) { result = new InventoryResult([], Classify(ex)); }
         finally { discoveryGate.Release(); }
+        result = result with { AttachedUsbDevices = attached };
         foreach (var entry in removed) entry.Removed.Cancel();
         lock (sync) PruneRetiring();
         foreach (var signal in signals) Emit(signal);

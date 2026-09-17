@@ -12,16 +12,22 @@ public sealed partial class MainWindow : Window
     public MainWindow(AppPage initialPage)
     {
         InitializeComponent();
+        AppWindow.SetIcon(Microsoft.UI.Win32Interop.GetIconIdFromIcon(AppIcon.Handle));
         ContentFrame.Navigated += OnContentFrameNavigated;
+        Activated += (_, args) =>
+        {
+            if (args.WindowActivationState != WindowActivationState.Deactivated && ContentFrame.Content is HomePage home)
+                home.RefreshStatus();
+        };
         Navigate(initialPage);
     }
 
     internal void Navigate(AppPage page)
     {
-        var item = page switch
+        object item = page switch
         {
             AppPage.Devices => AppNavigation.MenuItems.OfType<NavigationViewItem>().First(item => Equals(item.Tag, nameof(AppPage.Devices))),
-            AppPage.Settings => AppNavigation.MenuItems.OfType<NavigationViewItem>().First(item => Equals(item.Tag, nameof(AppPage.Settings))),
+            AppPage.Settings => AppNavigation.SettingsItem,
             AppPage.EnabledFor => AppNavigation.MenuItems.OfType<NavigationViewItem>().First(item => Equals(item.Tag, nameof(AppPage.EnabledFor))),
             _ => AppNavigation.MenuItems.OfType<NavigationViewItem>().First(item => Equals(item.Tag, nameof(AppPage.Home))),
         };
@@ -61,6 +67,12 @@ public sealed partial class MainWindow : Window
     {
         if (updatingNavigation)
         {
+            return;
+        }
+
+        if (args.IsSettingsSelected)
+        {
+            NavigateContent(AppPage.Settings);
             return;
         }
 

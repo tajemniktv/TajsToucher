@@ -11,6 +11,11 @@ public partial class App : Application
     private readonly WindowsSystemTrayService trayService = new();
     private MainWindow? mainWindow;
     private bool exitRequested;
+    private EventWaitHandle? dogfoodStop;
+    private EventWaitHandle? dogfoodReady;
+    private RegisteredWaitHandle? dogfoodWait;
+    private readonly EventWaitHandle? touchWait;
+    private TouchWaitCard? touchWaitCard;
 
     internal static AppPage InitialPage { get; set; } = AppPage.Home;
 
@@ -26,13 +31,22 @@ public partial class App : Application
         });
     }
 
-    public App()
+    public App(EventWaitHandle? touchWait = null)
     {
+        this.touchWait = touchWait;
         InitializeComponent();
     }
 
     protected override void OnLaunched(LaunchActivatedEventArgs args)
     {
+        if (touchWait is not null)
+        {
+            if (touchWait.WaitOne(0)) { Exit(); return; }
+            touchWaitCard = new TouchWaitCard(touchWait);
+            touchWaitCard.Closed += (_, _) => Exit();
+            touchWaitCard.Activate();
+            return; // No dashboard, tray icon, device listeners or dogfood handshake.
+        }
         trayService.OpenDashboardRequested += (_, _) => ShowDashboard(AppPage.Home);
         trayService.OpenSettingsRequested += (_, _) => ShowDashboard(AppPage.Settings);
         trayService.OpenEnabledForRequested += (_, _) => ShowDashboard(AppPage.EnabledFor);
@@ -40,6 +54,12 @@ public partial class App : Application
         trayService.Initialize();
 
         ShowDashboard(InitialPage);
+        dogfoodStop = new EventWaitHandle(false, EventResetMode.ManualReset,
+            DogfoodLifecycle.EventName("Stop", Environment.ProcessId));
+        dogfoodWait = ThreadPool.RegisterWaitForSingleObject(dogfoodStop, (_, _) =>
+            mainWindow!.DispatcherQueue.TryEnqueue(RequestExit), null, Timeout.Infinite, true);
+        dogfoodReady = new EventWaitHandle(true, EventResetMode.ManualReset,
+            DogfoodLifecycle.EventName("Ready", Environment.ProcessId));
     }
 
     internal static nint GetMainWindowHandle()
@@ -85,6 +105,10 @@ public partial class App : Application
         }
 
         exitRequested = true;
+        dogfoodReady?.Reset();
+        dogfoodWait?.Unregister(null);
+        dogfoodStop?.Dispose();
+        dogfoodReady?.Dispose();
         if (DeviceFeatureLifetime is not null)
         {
             await OptionalFeatureShutdown.DisposeAsync(DeviceFeatureLifetime, TimeSpan.FromSeconds(2));

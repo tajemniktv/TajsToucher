@@ -5,7 +5,9 @@ internal static class HelperDispatch
     // Process-local launch mode, not authentication. Never inferred from GPG arguments.
     internal const string EnvironmentVariable = "TAJSTOUCHER_PRIVATE_HELPER";
     internal const string Operation = "operation-v1";
+    internal const string OperationDiagnostics = "operation-diagnostics-v1";
     internal const string Notification = "notification-v1";
+    internal const string TouchWait = "touch-wait-v1";
 
     internal static string CreateEnvironmentBlock(string mode)
     {

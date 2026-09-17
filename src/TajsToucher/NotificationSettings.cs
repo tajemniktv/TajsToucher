@@ -12,6 +12,7 @@ internal sealed record NotificationSettings(string Title, string Text, string Ic
     public bool NotifyOnEncryption { get; init; }
     public bool NotifyOnDecryption { get; init; }
     public bool NotifyOnFailure { get; init; }
+    public bool ObserveSigningTouchWait { get; init; }
     public bool RecordDiagnostics { get; init; }
     public bool NotifyOnDevicePresence { get; init; }
     public bool NotifyOnLowRetries { get; init; }

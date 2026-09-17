@@ -29,9 +29,102 @@ TajsToucher.exe
 Build the project with the .NET 10 SDK:
 
 ```powershell
-dotnet restore TajsToucher.sln
+dotnet restore TajsToucher.slnx
 dotnet build src\TajsToucher\TajsToucher.csproj -c Release
 ```
+
+### Local dogfooding
+
+Every successful local app build (including Debug and IDE builds) publishes a complete,
+self-contained win-x64 SingleFile payload, verifies it in staging, gracefully exits the
+installed tray app, replaces the installed folder, and checks readiness plus a three-second
+startup-survival interval. This is startup evidence, not a complete UI/functionality test.
+The permanent executable is:
+
+```text
+%LOCALAPPDATA%\Programs\TajemnikTV\TajsToucher\current\TajsToucher.exe
+```
+
+Git should be installed against that path once. Updates never run `install` or `uninstall`
+and do not modify Git, registry settings, notification preferences, or uninstall backups.
+Launch **TajsToucher** from its Start menu shortcut, which always targets `current`.
+
+Like TajsTokens, use `-p:DogfoodEnabled=false`, or set `$env:DogfoodEnabled = 'false'`, to opt out.
+The old `Dogfood=false` and `TAJSTOUCHER_DOGFOOD=false` forms remain supported.
+CI (`CI`, `TF_BUILD`, `GITHUB_ACTIONS`, common server markers, or `ContinuousIntegrationBuild=true`), design-time builds,
+and app references built by the test project do not deploy. `dotnet test` is test-only;
+`dotnet build TajsToucher.slnx` intentionally includes an ordinary app build and deploys it.
+Explicit SingleFile publishes also deploy; other publish profiles/output formats do not.
+An IDE's up-to-date check that skips MSBuild does not trigger deployment.
+
+Staging lives in `.codex/temp/dogfood`; isolated test runs also use sibling
+`.codex/temp/dogfood-test-*` and `dogfood-migration-*` directories. These diagnostic
+trees are retained for inspection and can be removed after their processes exit.
+SDK build/intermediate outputs use the
+central repo-level `artifacts/bin` and `artifacts/obj` layout; both `artifacts/` and `.codex/`
+are ignored. Existing old `bin/obj` folders are excluded from source globs, not deleted.
+`version` and executable ProductVersion include the Git commit and explicit `.clean`/`.dirty` state,
+or `git-unknown` when Git metadata cannot be read.
+
+The common desktop-app layout is:
+
+```text
+TajsToucher/
+  current/      installed payload and build-identity.json
+  previous/     last replaced build, ready for rollback
+  retained/     older builds, failed/unused candidates, and migrated legacy backups
+  pending/      complete candidate awaiting promotion (only while deploying or after refusal)
+```
+
+The app root also holds `deploy.lock` and any unfinished `transaction.json`. A small
+`.TajsToucher-dogfood/activity.lock` inside this root preserves the GPG lease protocol even
+when rolling back to older binaries. There is no separate top-level dogfood folder.
+Settings remain in the registry and diagnostics in their existing location: unlike TajsTokens,
+TajsToucher does not need to relocate a database or create an artificial `data` directory.
+
+Both apps write schema-versioned `build-identity.json` with app name, Git identity, configuration,
+runtime, build timestamp, and payload hashes. Candidates are copied and hash-checked before
+same-volume directory renames. Cross-process/cross-session installation locks serialize updates.
+Every process is checked before any shutdown request. No process is force-killed. Active GPG
+operations, unknown/older app processes, and shutdown timeouts fail the deployment with an
+actionable message; finish the operation or exit an older tray and rebuild. Incoming proxy
+operations wait behind the deployment gate while existing operations retain shared leases.
+Publish/probe failures leave the old app untouched. Replacement/startup failures restore
+and restart the old build; failed candidates and backups remain available for diagnosis.
+
+To roll back without rebuilding:
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File tools\dogfood\Deploy.ps1 -Rollback
+```
+
+Backups are retained rather than automatically pruned. A crash/power loss between directory
+renames can temporarily leave the stable path absent: the next deployment refuses to alter the
+unfinished transaction. Inspect the journal, preserve failed candidates, and restore the desired
+complete build as `current` before clearing `transaction.json` and restarting. If rollback itself fails (for example a
+hung new process cannot exit), the journal and backup are retained for manual recovery; the
+script does not kill the process or overwrite locked files. There is no automatic retry service.
+
+The same entry points work in both app repositories: `tools/dogfood/Deploy.ps1` (explicit
+Release deployment by default; pass `-Configuration Debug` as needed) and
+`tools/dogfood/Test-Deployment.ps1`. TajsToucher's older `scripts/Dogfood.ps1` remains an alias.
+
+Validation: `dotnet test TajsToucher.slnx -c Release` runs the unit/regression suite without
+deploying. `tools/dogfood/Test-Deployment.ps1` creates an isolated publish and exercises actual
+isolated tray installs, the proxy gate, operation refusal, injected startup failure, and rollback.
+It also tests the flat-layout migration; pass `-StagePath <staged-SingleFile-folder>` to reuse a publish.
+It requires working GnuPG for the harmless `--version` proxy probe. Its fixtures remain under
+`.codex/temp`; `-SimulateStartupFailure` is rejected outside an isolated `-TestRoot`.
+
+For an older flat LocalAppData install, publish with dogfooding disabled, then run
+`scripts/Migrate-DogfoodLayout.ps1 -StagePath <staged-SingleFile-folder>`. It blocks active GPG,
+stops protocol-aware old trays gracefully (exit pre-protocol trays manually first),
+validates `current`, migrates Git only if the registry and Git
+still own the old path, and preserves all other registry values including the uninstall backup.
+The old flat payload becomes `previous`; the former sibling `.TajsToucher-dogfood` is moved
+intact into `retained/legacy-dogfood` (its old `previous.txt` is archival metadata, not the active
+rollback authority). An unfinished `layout-migration.json` blocks further ordinary deployment
+and must be reviewed before retrying. Original backups are never silently deleted.
 
 For a framework-dependent Windows x64 build (the WinUI 3 runtime payload is
 kept beside the executable), publish for Windows x64:
@@ -56,10 +149,8 @@ For a single self-contained Windows x64 executable:
 dotnet publish src\TajsToucher\TajsToucher.csproj -c Release -p:PublishProfile=SingleFile
 ```
 
-The permanent daily-use output is `artifacts\publish\single-file\TajsToucher.exe`.
-Future updates are published to this same location, not task-specific folders.
-Exit the tray app and finish any signing operation before replacing the executable.
-Install for Git from this path once; ordinary updates do not require reinstalling.
+The SingleFile profile publishes to unique staging and deploys to the permanent LocalAppData
+path above. With dogfooding disabled it leaves the staged payload without deploying it.
 It bundles
 the .NET and Windows App SDK payloads and extracts them into the .NET runtime's
 per-user cache on first launch. Allow extra disk space and startup time for that
@@ -69,11 +160,12 @@ The ordinary folder-based publish remains supported.
 Run the published executable from its final location:
 
 ```powershell
-artifacts\publish\win-x64\TajsToucher.exe
-artifacts\publish\win-x64\TajsToucher.exe install
-artifacts\publish\win-x64\TajsToucher.exe diagnose
-artifacts\publish\win-x64\TajsToucher.exe settings
-artifacts\publish\win-x64\TajsToucher.exe uninstall
+$app = Join-Path $env:LOCALAPPDATA 'Programs\TajemnikTV\TajsToucher\current\TajsToucher.exe'
+& $app
+& $app install
+& $app diagnose
+& $app settings
+& $app uninstall
 ```
 
 `install` discovers the real GnuPG executable, stores it in the current user's
@@ -83,11 +175,11 @@ restores the previous value only if Git still points at the same wrapper; it
 will not overwrite a setting changed by the user in the meantime.
 
 Launching the executable without arguments opens the WinUI 3 TajsToucher app.
-The Home dashboard is the primary control surface: it shows whether Git signing
-is connected, whether the real GnuPG executable is available, exposes install,
-uninstall, and test-notification actions, embeds notification personalization,
-and lists the enabled adapters. The separate **Settings** and **Enabled for**
-pages are navigation shortcuts to the same capabilities. Settings include the
+Home shows an overview of Git signing readiness and GnuPG availability.
+**Enabled for** owns integration details, install/uninstall, and setup diagnostics.
+**Settings**, in the navigation pane's built-in lower-left entry, owns notification
+personalization and the test-notification action. **Devices** owns device diagnostics.
+Settings include the
 notification title, notification text, and an optional `.ico` file. Use
 `{Repository}` in either field to insert the current repository name. If the
 text does not contain that token, the repository name is appended automatically
@@ -135,8 +227,30 @@ and opens the folder; you can remove the two log files when no longer needed.
 
 ### Optional YubiKey diagnostics
 
-Open **Devices** (or run `TajsToucher.exe devices`), then click **Discover /
-refresh keys**. The pinned Yubico SDK runs in a separate desktop-only assembly.
+Open **Devices** (or run `TajsToucher.exe devices`) to refresh inventory;
+**Discover / refresh keys** retries it explicitly. Connected USB hardware is
+shown as presence cards, independently of usable SDK handles. Optional SDK
+controls live in a collapsed diagnostics section; unavailable SDK access does
+not hide the hardware cards or prevent signing prompts. USB card numbers are
+snapshot labels, not identities matched to SDK keys. The pinned Yubico SDK runs
+in a separate desktop-only assembly.
+A successful empty SDK discovery means no *accessible* key, not necessarily an unplugged
+key. GPG can own the smart-card interface while Windows denies direct FIDO
+access. Refresh retries a previously empty SDK cache without requiring a USB
+replug; it does not stop GPG, take over its card connection, or elevate the app.
+Retry after the other application releases the interface. Existing nonempty
+inventories retain their device identities and listeners.
+If discovery fails, SDK accessibility is unknown. The previous selector remains
+visible as stale, with diagnostic actions disabled until a successful refresh.
+The Devices page separately reports **Windows USB attachment** using present
+PnP device nodes, without opening a card or HID connection. This can detect an
+attached YubiKey or Security Key even when the SDK cannot open it. Known Yubico
+key product IDs are allowlisted; HSMs and unknown products are excluded. Composite USB
+interfaces are not counted as separate keys. Unknown OS presence stays unknown;
+this USB-only count is not NFC inventory or proof of a usable credential.
+GPG may retain exclusive card access after signing finishes, so refresh cannot
+guarantee SDK access. The app never kills scdaemon or silently enables
+`pcsc-shared` to work around this restriction.
 Discovery stays active until the tray app exits; it is never started by a GPG
 invocation. Select a key explicitly when several are connected. Inventory shows
 firmware and available/enabled USB/NFC applications, not credential usability.
@@ -177,9 +291,8 @@ remains gated on a separately validated askpass lifecycle.
 Closing the app window hides TajsToucher to the system tray instead of stopping
 it. Double-click the tray icon, or use its menu, to reopen the dashboard,
 Settings, or Enabled for. **Exit TajsToucher** in that menu terminates the app.
-The dashboard follows Windows' native light/dark/high-contrast theme. Home's
-embedded settings and integration information share its outer scroll surface;
-the standalone pages keep their own scrolling.
+The dashboard follows Windows' native light/dark/high-contrast theme.
+Each page owns its content and scrolling; Home does not embed other pages.
 
 `settings` opens the same app directly on the Settings screen. `app` opens the
 Home screen explicitly.
@@ -245,6 +358,27 @@ accent colorization for that process. This is preferable to a global exclusion
 when the mod's **New system colors** option is enabled.
 
 ## Possible future direction
+
+### Experimental signing touch-wait indicator
+
+Settings includes an opt-in **Experimental signing touch-wait indicator**.
+With signing notices enabled, this replaces the initial signing request notice
+when the observer starts. One read-only GnuPG policy query is made during
+each eligible wrapped signature. A slow response shows **Key may be waiting
+for touch** in a compact topmost WinUI card rather than a balloon, with a key
+icon and Windows light/dark/high-contrast theme resources.
+The window closes when the query or signing ends, or after a 30-second safety
+limit. **Dismiss** (or Escape) only dismisses the prompt; cancel the signing
+operation in the requesting application. It does not confirm that a touch
+occurred and never requests a PIN. It is not a Windows Security dialog.
+Ordinary request/failure notices remain tray balloons, not notification-history
+entries. This window avoids balloon queuing but retains the heuristic delay.
+
+This is a busy heuristic, not LED monitoring or proof of touch: PIN prompts,
+other card operations, and slow responses can trigger it, and a single early
+query can miss a later wait. Custom `--homedir`/`--options` invocations are
+skipped. It does not change key policy, import keys, or change signing results.
+See [the evidence and remaining limitations](docs/touch-monitoring-feasibility.md).
 
 TajsToucher may eventually grow into a general hardware-key event and policy layer. The architectural direction should prefer adapters and metadata over becoming a cryptographic middleman.
 

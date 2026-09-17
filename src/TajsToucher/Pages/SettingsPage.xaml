@@ -54,6 +54,9 @@
             <ToggleSwitch x:Name="EncryptionToggle" Header="Encryption requests (opt-in)" />
             <ToggleSwitch x:Name="DecryptionToggle" Header="Decryption requests (opt-in)" />
             <ToggleSwitch x:Name="FailureToggle" Header="Failure alerts for selected operations (opt-in)" />
+            <ToggleSwitch x:Name="TouchWaitToggle" Header="Experimental topmost signing touch-wait window (opt-in)" />
+            <TextBlock Text="One read-only GnuPG card-policy probe per signing request. A slow response means the key may need touch, but can also mean PIN waiting or unrelated card activity. The indicator clears when the probe or signing ends; that does not confirm a touch. Requires Signing requests enabled. Custom --homedir/--options invocations are skipped."
+                       TextWrapping="Wrap" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
             <TextBlock Text="Only GnuPG invocations routed through TajsToucher are observed. Requests do not prove that a hardware key needs touch. Verification and key/PIN management remain unobserved. These rules never block an operation."
                        TextWrapping="Wrap" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
             <ToggleSwitch x:Name="DiagnosticsToggle" Header="Record operation diagnostics locally (opt-in)" />

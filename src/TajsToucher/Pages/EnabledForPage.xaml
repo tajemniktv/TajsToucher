@@ -17,6 +17,12 @@
                 <StackPanel Spacing="6">
                     <TextBlock Text="Git / OpenPGP signing" Foreground="{ThemeResource TextFillColorPrimaryBrush}" FontSize="16" FontWeight="SemiBold" />
                     <TextBlock x:Name="GitStatusText" Text="Checking global setup…" Foreground="{ThemeResource TextFillColorSecondaryBrush}" FontWeight="SemiBold" TextWrapping="Wrap" />
+                    <StackPanel Orientation="Horizontal" Spacing="8">
+                        <Button x:Name="InstallButton" Content="Install for Git" Click="Install_Click" />
+                        <Button x:Name="UninstallButton" Content="Uninstall" Click="Uninstall_Click" Visibility="Collapsed" />
+                        <Button x:Name="DiagnoseButton" Content="Diagnose setup" Click="Diagnose_Click" />
+                    </StackPanel>
+                    <TextBlock x:Name="ActionStatus" Foreground="{ThemeResource TextFillColorSecondaryBrush}" TextWrapping="Wrap" />
                     <TextBlock Text="Shows a notification when Git asks GnuPG to create a signature. Verification operations stay quiet."
                                Foreground="{ThemeResource TextFillColorSecondaryBrush}"
                                TextWrapping="Wrap" />

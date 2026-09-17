@@ -4,6 +4,7 @@ internal static class GpgProxy
 {
     public static int Run(IReadOnlyList<string> args)
     {
+        using var activity = DogfoodLifecycle.EnterOperation();
         var wrapperPath = Environment.ProcessPath is { Length: > 0 } processPath
             ? Path.GetFullPath(processPath)
             : string.Empty;
@@ -15,7 +16,9 @@ internal static class GpgProxy
             return 1;
         }
 
-        var observation = OperationObservation.TryStart(OperationClassifier.Classify(args));
+        var observation = OperationObservation.TryStart(OperationClassifier.Classify(args), suppressRequestNotification: true);
+        using var touchObservation = GpgTouchObservation.TryStart(realGpg, args, () => observation?.RestoreRequestNotification());
+        if (touchObservation is null) observation?.RestoreRequestNotification();
         var exitCode = ForwardProcess(realGpg, args, Console.OpenStandardInput(), Console.OpenStandardOutput(), Console.OpenStandardError(),
             () => CancelIoEx(GetStdHandle(-10), IntPtr.Zero));
         observation?.Complete(exitCode);
