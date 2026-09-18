@@ -8,6 +8,9 @@ internal static class ProxyChild
 {
     public static int Main(string[] args)
     {
+        if (args.Length == 3 && args[0] == "--migration-install" &&
+            args[1].StartsWith(@"Software\TajsToucher.Tests\Migration\", StringComparison.Ordinal))
+            return Installer.Install(args[2], new ConfigurationStore(args[1]));
         if (args.SequenceEqual(new[] { "--no-autostart", "SCD GETATTR UIF-1", "/bye" }))
         {
             // Simulates a hung probe, not a real daemon. The observer must kill

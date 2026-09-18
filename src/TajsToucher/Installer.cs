@@ -2,10 +2,10 @@ namespace TajsToucher;
 
 internal static class Installer
 {
-    public static int Install()
+    public static int Install() => Install(CurrentExecutablePath(), new ConfigurationStore());
+
+    internal static int Install(string wrapperPath, ConfigurationStore store)
     {
-        var wrapperPath = CurrentExecutablePath();
-        var store = new ConfigurationStore();
         var existingState = store.Load();
         var realGpgPath = ExecutableLocator.FindGpg(existingState?.RealGpgPath, wrapperPath);
         if (realGpgPath is null)

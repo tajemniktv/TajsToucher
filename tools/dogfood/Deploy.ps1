@@ -5,6 +5,7 @@ param(
     [string]$StagePath,
     [switch]$Rollback,
     [string]$TestRoot,
-    [switch]$SimulateStartupFailure
+    [switch]$SimulateStartupFailure,
+    [switch]$RemoveStageOnSuccess
 )
 & (Join-Path $PSScriptRoot '../../scripts/Dogfood.ps1') @PSBoundParameters

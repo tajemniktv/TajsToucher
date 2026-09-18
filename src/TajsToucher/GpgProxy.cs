@@ -4,7 +4,14 @@ internal static class GpgProxy
 {
     public static int Run(IReadOnlyList<string> args)
     {
-        using var activity = DogfoodLifecycle.EnterOperation();
+        IDisposable? activity;
+        try { activity = DogfoodLifecycle.EnterOperation(); }
+        catch (TimeoutException exception)
+        {
+            Console.Error.WriteLine($"TajsToucher: {exception.Message}");
+            return 1;
+        }
+        using var activityLease = activity;
         var wrapperPath = Environment.ProcessPath is { Length: > 0 } processPath
             ? Path.GetFullPath(processPath)
             : string.Empty;

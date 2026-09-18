@@ -398,6 +398,19 @@ USBPcap/filter drivers and API hooks remain deferred, requiring a separate
 scope decision rather than being installed as fallback. Literal LED querying,
 background Identify, and synthetic signing as monitoring mechanisms are excluded.
 
+## Remaining physical touch-card acceptance
+
+- [ ] Prioritize PIN wait with the topmost card: confirm the suspected-wait prompt
+  does not obstruct pinentry, and that Dismiss permits PIN entry without cancelling signing.
+- [ ] Competing card activity and multiple cards: no claim of per-key attribution.
+- [ ] Cancellation, touch-cached/no-touch policy, and unplug: ending/hiding a card
+  must never be interpreted as proof of user presence.
+- [ ] A real second Windows session starting a wrapper during deployment. Automated
+  exclusive-file-lease tests cover the underlying contention and bounded refusal,
+  not RDP/Fast User Switching end-to-end acceptance.
+
+These are manual acceptance tasks, not completed by the deployment harness or unit suite.
+
 ## Explicitly deferred
 
 These ideas are interesting enough to become traps, so they are intentionally not early milestones:

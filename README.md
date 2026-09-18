@@ -59,7 +59,10 @@ An IDE's up-to-date check that skips MSBuild does not trigger deployment.
 
 Staging lives in `.codex/temp/dogfood`; isolated test runs also use sibling
 `.codex/temp/dogfood-test-*` and `dogfood-migration-*` directories. These diagnostic
-trees are retained for inspection and can be removed after their processes exit.
+trees and explicitly supplied stages are retained for inspection/reuse and can be
+removed after their processes exit. Stages created by an ordinary build, rollback,
+or the default SingleFile publish are deleted only after successful promotion.
+Failed stages remain. An explicit publish output override is not auto-deleted.
 SDK build/intermediate outputs use the
 central repo-level `artifacts/bin` and `artifacts/obj` layout; both `artifacts/` and `.codex/`
 are ignored. Existing old `bin/obj` folders are excluded from source globs, not deleted.
@@ -72,7 +75,10 @@ The common desktop-app layout is:
 TajsToucher/
   current/      installed payload and build-identity.json
   previous/     last replaced build, ready for rollback
-  retained/     older builds, failed/unused candidates, and migrated legacy backups
+  retained/
+    successful/ newest three retired successful generations (in addition to current/previous)
+    failed/     failed/unused candidates, manual cleanup only
+    migration/  legacy payloads and integration snapshots, manual cleanup only
   pending/      complete candidate awaiting promotion (only while deploying or after refusal)
 ```
 
@@ -85,10 +91,15 @@ TajsToucher does not need to relocate a database or create an artificial `data` 
 Both apps write schema-versioned `build-identity.json` with app name, Git identity, configuration,
 runtime, build timestamp, and payload hashes. Candidates are copied and hash-checked before
 same-volume directory renames. Cross-process/cross-session installation locks serialize updates.
-Every process is checked before any shutdown request. No process is force-killed. Active GPG
+Every process is checked before any shutdown request. Existing user processes are never force-killed;
+only a newly launched deployment-owned candidate/probe may be terminated on startup failure. Active GPG
 operations, unknown/older app processes, and shutdown timeouts fail the deployment with an
 actionable message; finish the operation or exit an older tray and rebuild. Incoming proxy
-operations wait behind the deployment gate while existing operations retain shared leases.
+operations wait behind the session-local deployment gate while existing operations retain shared leases.
+The file lease also protects wrappers starting in another Windows session: sharing/lock
+violations wait up to 60 seconds, then refuse to start GPG with a retry message rather
+than proceeding unprotected. Other unavailable coordination still fails open. Cross-session
+tray shutdown is not supported; an inaccessible stop event still refuses deployment.
 Publish/probe failures leave the old app untouched. Replacement/startup failures restore
 and restart the old build; failed candidates and backups remain available for diagnosis.
 
@@ -98,7 +109,13 @@ To roll back without rebuilding:
 powershell -NoProfile -ExecutionPolicy Bypass -File tools\dogfood\Deploy.ps1 -Rollback
 ```
 
-Backups are retained rather than automatically pruned. A crash/power loss between directory
+After a successful transaction, only the newest three managed `retained/successful`
+generations are kept. Cleanup never prunes `current`, `previous`, failed candidates,
+migration data, or pre-existing unclassified history. Original migrated flat builds
+carry a retention marker so rotating `previous` does not make them disposable.
+Cleanup refuses reparse points and unfinished journals; cleanup failure retains data
+and warns without rolling back a successful installation. Historic recovery trees
+are not recursively scanned by ordinary deployments. A crash/power loss between directory
 renames can temporarily leave the stable path absent: the next deployment refuses to alter the
 unfinished transaction. Inspect the journal, preserve failed candidates, and restore the desired
 complete build as `current` before clearing `transaction.json` and restarting. If rollback itself fails (for example a
@@ -112,7 +129,13 @@ Release deployment by default; pass `-Configuration Debug` as needed) and
 Validation: `dotnet test TajsToucher.slnx -c Release` runs the unit/regression suite without
 deploying. `tools/dogfood/Test-Deployment.ps1` creates an isolated publish and exercises actual
 isolated tray installs, the proxy gate, operation refusal, injected startup failure, and rollback.
-It also tests the flat-layout migration; pass `-StagePath <staged-SingleFile-folder>` to reuse a publish.
+It also tests retention and the flat-layout migration; pass `-StagePath <staged-SingleFile-folder>` to reuse a publish.
+Migration tests use a unique `HKCU\Software\TajsToucher.Tests\Migration\<guid>` subtree
+and isolated `GIT_CONFIG_GLOBAL`. The same migration checks and `Installer.Install`
+implementation run through a test-only process host, including integration handoff,
+ownership refusal, notification preservation, and uninstall backup preservation.
+The production executable has no test registry override. Direct migration-test runs
+require `-TestInstallerPath <built TajsToucher.Tests.exe>`; the common entry point builds it.
 It requires working GnuPG for the harmless `--version` proxy probe. Its fixtures remain under
 `.codex/temp`; `-SimulateStartupFailure` is rejected outside an isolated `-TestRoot`.
 
@@ -122,7 +145,7 @@ stops protocol-aware old trays gracefully (exit pre-protocol trays manually firs
 validates `current`, migrates Git only if the registry and Git
 still own the old path, and preserves all other registry values including the uninstall backup.
 The old flat payload becomes `previous`; the former sibling `.TajsToucher-dogfood` is moved
-intact into `retained/legacy-dogfood` (its old `previous.txt` is archival metadata, not the active
+intact into `retained/migration/legacy-dogfood` (its old `previous.txt` is archival metadata, not the active
 rollback authority). An unfinished `layout-migration.json` blocks further ordinary deployment
 and must be reviewed before retrying. Original backups are never silently deleted.
 

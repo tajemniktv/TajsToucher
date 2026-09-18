@@ -14,6 +14,9 @@
   </Target>
   <Target Name="DeployPublishedDogfood" AfterTargets="Publish"
           Condition="'$(MSBuildProjectName)' == 'TajsToucher' and '$(PublishProfile)' == 'SingleFile' and '$(DogfoodEnabled)' == 'true' and '$(Dogfood)' != 'false' and '$(OS)' == 'Windows_NT' and '$(DesignTimeBuild)' != 'true' and '$(IsTestProject)' != 'true' and '$(TajsDogfoodTestOnly)' != 'true' and '$(ContinuousIntegrationBuild)' != 'true' and '$(TajsDogfoodIsCI)' != 'true' and '$(VSTestSessionCorrelationId)' == ''">
-    <Exec Command="powershell -NoProfile -ExecutionPolicy Bypass -File &quot;$(MSBuildThisFileDirectory)tools\dogfood\Deploy.ps1&quot; -Configuration &quot;$(Configuration)&quot; -StagePath &quot;$(PublishDir).&quot;" />
+    <PropertyGroup>
+      <TajsStageCleanupArgument Condition="'$(PublishDir)' == '$(TajsGeneratedPublishDir)'">-RemoveStageOnSuccess</TajsStageCleanupArgument>
+    </PropertyGroup>
+    <Exec Command="powershell -NoProfile -ExecutionPolicy Bypass -File &quot;$(MSBuildThisFileDirectory)tools\dogfood\Deploy.ps1&quot; -Configuration &quot;$(Configuration)&quot; -StagePath &quot;$(PublishDir).&quot; $(TajsStageCleanupArgument)" />
   </Target>
 </Project>

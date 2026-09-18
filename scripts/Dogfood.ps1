@@ -6,6 +6,7 @@ param(
     [string]$TestRoot,
     [switch]$SimulateStartupFailure,
     [switch]$SimulateReadinessTimeout,
+    [switch]$RemoveStageOnSuccess,
     [switch]$AllowLegacyLayout
 )
 $ErrorActionPreference = 'Stop'
@@ -22,6 +23,8 @@ Import-Module (Join-Path $PSHOME 'Modules\Microsoft.PowerShell.Management\Micros
 Import-Module (Join-Path $PSHOME 'Modules\Microsoft.PowerShell.Utility\Microsoft.PowerShell.Utility.psd1')
 Import-Module (Join-Path $PSHOME 'Modules\CimCmdlets\CimCmdlets.psd1')
 $repo = Split-Path $PSScriptRoot -Parent
+. (Join-Path $PSScriptRoot 'Dogfood.Retention.ps1')
+$ownsStage = [bool]$RemoveStageOnSuccess
 $work = Join-Path $repo '.codex\temp\dogfood'
 $install = Join-Path $env:LOCALAPPDATA 'Programs\TajemnikTV\TajsToucher'
 if ($TestRoot) {
@@ -36,13 +39,19 @@ $exe = Join-Path $install 'TajsToucher.exe'
 $journal = Join-Path $stateRoot 'transaction.json'
 $previous = Join-Path $stateRoot 'previous'
 $retained = Join-Path $stateRoot 'retained'
+$successful = Join-Path $retained 'successful'
+$failed = Join-Path $retained 'failed'
+$migrationHistory = Join-Path $retained 'migration'
 if ((Test-Path -LiteralPath (Join-Path $stateRoot 'TajsToucher.exe')) -and !$AllowLegacyLayout) {
     throw 'Legacy flat installation detected. Run scripts/Migrate-DogfoodLayout.ps1 before ordinary builds.'
 }
 if ((Test-Path -LiteralPath (Join-Path $stateRoot 'layout-migration.json')) -and !$AllowLegacyLayout) {
     throw 'An unfinished layout migration requires review before deployment.'
 }
-New-Item -ItemType Directory -Force -Path $work, $retained | Out-Null
+foreach ($path in @($stateRoot, $retained, $successful, $failed, $migrationHistory)) {
+    if ((Test-Path -LiteralPath $path) -and ((Get-Item -LiteralPath $path -Force).Attributes -band [IO.FileAttributes]::ReparsePoint)) { throw 'Refusing installation reparse points.' }
+}
+New-Item -ItemType Directory -Force -Path $work, $retained, $successful, $failed, $migrationHistory | Out-Null
 # Keep the lease's relative location compatible with older binaries when rolling back.
 $coordination = Join-Path $stateRoot '.TajsToucher-dogfood'
 New-Item -ItemType Directory -Force -Path $coordination | Out-Null
@@ -162,7 +171,12 @@ $installationLock = $null
 try {
     try { $ownsWorkflow = $workflow.WaitOne(0) } catch [Threading.AbandonedMutexException] { $ownsWorkflow = $true }
     if (!$ownsWorkflow) { throw 'Another dogfood deployment is running. Rebuild when it finishes.' }
-    Assert-PlainTree $stateRoot
+    # Historic payloads are not touched by deployment; do not recursively rescan
+    # failed/migrated history on every build. Validate mutable trees when used.
+    foreach ($path in @($stateRoot, $retained, $successful, $failed, $migrationHistory)) {
+        if ((Get-Item -LiteralPath $path -Force).Attributes -band [IO.FileAttributes]::ReparsePoint) { throw 'Refusing installation reparse points.' }
+    }
+    Assert-PlainTree $coordination
     try { $installationLock = [IO.File]::Open((Join-Path $stateRoot 'deploy.lock'), 'OpenOrCreate', 'ReadWrite', 'None') }
     catch { throw 'Another deployment owns the installation lock. Retry after it finishes.' }
     if (Test-Path -LiteralPath $journal) {
@@ -172,9 +186,12 @@ try {
         if (!(Test-Path -LiteralPath $previous)) { throw 'No previous build is available.' }
         $source = $previous
         $StagePath = Join-Path $work ([Guid]::NewGuid().ToString('N') + '-rollback')
+        $ownsStage = $true
+        Assert-PlainTree $source
         Copy-Item -LiteralPath $source -Destination $StagePath -Recurse
     } elseif (!$StagePath) {
         $StagePath = Join-Path $work ([Guid]::NewGuid().ToString('N') + '-stage')
+        $ownsStage = $true
         & dotnet publish (Join-Path $repo 'src\TajsToucher\TajsToucher.csproj') -c $Configuration -p:PublishProfile=SingleFile -p:DogfoodEnabled=false -p:Dogfood=false -o $StagePath
         if ($LASTEXITCODE -ne 0) { throw 'Staging publish failed; the installed app was not touched.' }
     }
@@ -195,7 +212,7 @@ try {
     # Durable candidate/rollback store shares the installed volume, even when the repo is on another drive.
     $candidate = Join-Path $stateRoot 'pending'
     if (Test-Path -LiteralPath $candidate) {
-        Move-ManagedDirectory $candidate (Join-Path $retained ([Guid]::NewGuid().ToString('N') + '-unused'))
+        Move-ManagedDirectory $candidate (Join-Path $failed ([Guid]::NewGuid().ToString('N') + '-unused'))
     }
     Copy-Item -LiteralPath $StagePath -Destination $candidate -Recurse
     foreach ($file in Get-ChildItem -LiteralPath $StagePath -File -Recurse) {
@@ -221,7 +238,10 @@ try {
     if (Get-Process -Name gpg,gpg2 -ErrorAction SilentlyContinue) { throw 'GPG is running; deployment skipped. Rebuild after it finishes.' }
     $backup = Join-Path $retained ([Guid]::NewGuid().ToString('N') + '-replaced')
     $hadInstall = Test-Path -LiteralPath $install
-    $retiredPrevious = Join-Path $retained ([Guid]::NewGuid().ToString('N') + '-previous')
+    $retiredPrevious = Join-Path $successful ([Guid]::NewGuid().ToString('N') + '-previous')
+    if (Test-Path -LiteralPath (Join-Path $previous '.preserve-migration')) {
+        $retiredPrevious = Join-Path $migrationHistory ([Guid]::NewGuid().ToString('N') + '-previous')
+    }
     $promotedPrevious = $false
     $swapped = $false
     $stopped = $false
@@ -240,7 +260,10 @@ try {
         Start-Tray
         Set-Launcher
         if ($hadInstall) {
-            if (Test-Path -LiteralPath $previous) { Move-ManagedDirectory $previous $retiredPrevious }
+            if (Test-Path -LiteralPath $previous) {
+                Move-ManagedDirectory $previous $retiredPrevious
+                (Get-Item -LiteralPath $retiredPrevious).LastWriteTimeUtc = [DateTime]::UtcNow
+            }
             Move-ManagedDirectory $backup $previous
             $promotedPrevious = $true
         }
@@ -250,7 +273,7 @@ try {
         $failure = $_
         if ($swapped) {
             Stop-Trays
-            Move-ManagedDirectory $install (Join-Path $retained ([Guid]::NewGuid().ToString('N') + '-failed'))
+            Move-ManagedDirectory $install (Join-Path $failed ([Guid]::NewGuid().ToString('N') + '-failed'))
         }
         if ($promotedPrevious) { Move-ManagedDirectory $previous $install }
         elseif (Test-Path -LiteralPath $backup) { Move-ManagedDirectory $backup $install }
@@ -262,6 +285,11 @@ try {
         if (Test-Path -LiteralPath $journal) { Remove-Item -LiteralPath $journal }
         throw $failure
     }
+    # Cleanup cannot turn a validated promotion into rollback. Failures retain data.
+    try {
+        Clear-DogfoodSuccessHistory $stateRoot
+        if ($ownsStage) { Remove-DogfoodDirectory $StagePath $work }
+    } catch { Write-Warning "Deployment succeeded; optional history cleanup was skipped: $_" }
 } finally {
     if ($lease) { $lease.Dispose() }
     if ($installationLock) { $installationLock.Dispose() }

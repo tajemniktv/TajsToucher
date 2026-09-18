@@ -1,5 +1,6 @@
 [CmdletBinding()]
-param([Parameter(Mandatory)][string]$StagePath, [string]$TestRoot, [switch]$SimulateStartupFailure)
+param([Parameter(Mandatory)][string]$StagePath, [string]$TestRoot, [switch]$SimulateStartupFailure,
+    [string]$TestRegistryPath, [string]$TestInstallerPath)
 $ErrorActionPreference = 'Stop'
 Import-Module (Join-Path $PSHOME 'Modules\Microsoft.PowerShell.Management\Microsoft.PowerShell.Management.psd1')
 Import-Module (Join-Path $PSHOME 'Modules\Microsoft.PowerShell.Utility\Microsoft.PowerShell.Utility.psd1')
@@ -9,6 +10,17 @@ $parent = Join-Path $env:LOCALAPPDATA 'Programs\TajemnikTV'
 if ($TestRoot) {
     $parent = [IO.Path]::GetFullPath($TestRoot)
     if (!$parent.StartsWith((Join-Path $repo '.codex\temp\'), [StringComparison]::OrdinalIgnoreCase)) { throw 'TestRoot must be inside repository .codex\temp.' }
+    if ($TestRegistryPath -notmatch '^Software\\TajsToucher\.Tests\\Migration\\[0-9a-f]{32}$' -or
+        !(Test-Path -LiteralPath $TestInstallerPath -PathType Leaf)) { throw 'Isolated migration requires a test registry subtree and installer host.' }
+    $registryPath = "Registry::HKEY_CURRENT_USER\$TestRegistryPath"
+    # This script runs as an isolated child in the harness. Never redirect the daily app's registry.
+    $env:GIT_CONFIG_GLOBAL = Join-Path $parent 'gitconfig'
+    $env:GIT_CONFIG_NOSYSTEM = '1'
+    $env:GIT_CONFIG_COUNT = '0'
+    Remove-Item Env:GIT_CONFIG_PARAMETERS -ErrorAction SilentlyContinue
+} else {
+    if ($TestRegistryPath -or $TestInstallerPath) { throw 'Test integration overrides require TestRoot.' }
+    $registryPath = 'HKCU:\Software\TajsToucher'
 }
 if ($SimulateStartupFailure -and !$TestRoot) { throw 'Fault injection requires TestRoot.' }
 $root = Join-Path $parent 'TajsToucher'
@@ -100,19 +112,28 @@ try {
     try { $owned = $newWorkflow.WaitOne(0) } catch [Threading.AbandonedMutexException] { $owned = $true }
     if (!$owned) { $newWorkflow.Dispose(); throw 'New installation is busy; preserve the migration journal for review.' }
     $locks += $newWorkflow
-    if (!$TestRoot) {
-        $before = Get-ItemProperty HKCU:\Software\TajsToucher | Select-Object * -ExcludeProperty PS*
+    & {
+        $before = Get-ItemProperty -LiteralPath $registryPath | Select-Object * -ExcludeProperty PS*
         $programs = @(Get-GitPrograms)
         if ($programs.Count -ne 1 -or $programs[0] -ine $oldExe -or $before.WrapperPath -ine $oldExe) {
             throw 'Git/registry ownership changed; refusing to migrate integration.'
         }
-        $before | Export-Clixml -LiteralPath (Join-Path $root 'retained\pre-layout-registry.xml')
-        $process = Start-Process -FilePath $newExe -ArgumentList install -WindowStyle Hidden -PassThru
+        $before | Export-Clixml -LiteralPath (Join-Path $root 'retained\migration\pre-layout-registry.xml')
+        $start = New-Object Diagnostics.ProcessStartInfo
+        $start.UseShellExecute = $false
+        $start.CreateNoWindow = $true
+        $start.FileName = $newExe
+        $start.Arguments = 'install'
+        if ($TestRoot) {
+            $start.FileName = $TestInstallerPath
+            $start.Arguments = '--migration-install "' + $TestRegistryPath + '" "' + $newExe + '"'
+        }
+        $process = [Diagnostics.Process]::Start($start)
         try {
             if (!$process.WaitForExit(15000)) { $process.Kill(); $process.WaitForExit(); throw 'Git migration timed out; installer stopped and legacy files retained.' }
             if ($process.ExitCode -ne 0) { throw 'Git migration failed; legacy files are retained.' }
         } finally { $process.Dispose() }
-        $after = Get-ItemProperty HKCU:\Software\TajsToucher
+        $after = Get-ItemProperty -LiteralPath $registryPath
         foreach ($property in $before.PSObject.Properties) {
             if ($property.Name -ne 'WrapperPath' -and [string]$after.($property.Name) -cne [string]$property.Value) { throw "Unexpected registry change: $($property.Name). Preserve the journal and registry snapshot." }
         }
@@ -127,12 +148,15 @@ try {
         if ((Split-Path $item.FullName -Parent) -ine $root) { throw 'Invalid legacy payload source.' }
         Move-Item -LiteralPath $item.FullName -Destination (Join-Path $previous $item.Name)
     }
+    # When previous is later rotated, the original flat build remains migration
+    # recovery data, not a disposable successful generation.
+    [IO.File]::WriteAllText((Join-Path $previous '.preserve-migration'), 'Legacy flat installation')
     $lease.Dispose(); $lease = $null
-    $archive = Join-Path $root 'retained\legacy-dogfood'
+    $archive = Join-Path $root 'retained\migration\legacy-dogfood'
     if (Test-Path -LiteralPath $archive) { throw 'Legacy archive already exists.' }
     Move-Item -LiteralPath $oldStore -Destination $archive
     Remove-Item -LiteralPath $journal
-    Write-Host "Layout migration complete: $newExe. Flat build is previous; original backups are retained/legacy-dogfood."
+    Write-Host "Layout migration complete: $newExe. Flat build is previous; original backups are retained/migration/legacy-dogfood."
 } finally {
     $stillRunning = @(Get-CimInstance Win32_Process -Filter "Name='TajsToucher.exe'" | Where-Object ExecutablePath -EQ $oldExe)
     if (!$deployed -and $wasRunning -and !$stillRunning.Count -and (Test-Path -LiteralPath $oldExe)) {
